@@ -1,0 +1,1 @@
+ALTER TABLE "bio_config" ADD COLUMN "style" jsonb DEFAULT '{}'::jsonb NOT NULL;

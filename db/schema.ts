@@ -350,9 +350,11 @@ export const bioConfig = pgTable("bio_config", {
   order: jsonb("order").$type<string[]>().notNull().default([]),
   hidden: jsonb("hidden").$type<string[]>().notNull().default([]),
   manual: jsonb("manual")
-    .$type<{ id: string; label: string; url: string }[]>()
+    .$type<{ id: string; label: string; url: string; type?: "link" | "heading" }[]>()
     .notNull()
     .default([]),
+  /** Header layout, wallpaper, button style, font, colours, socials (see lib/bio/theme.ts). */
+  style: jsonb("style").$type<Record<string, unknown>>().notNull().default({}),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

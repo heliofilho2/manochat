@@ -36,6 +36,13 @@
       "when": 1790768890356,
       "tag": "0004_story_leads",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790770179057,
+      "tag": "0005_bio_style",
+      "breakpoints": true
     }
   ]
 }

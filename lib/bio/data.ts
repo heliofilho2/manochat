@@ -5,7 +5,7 @@ import { accessTokenFor } from "@/lib/account";
 import { getFollowersCount, getMedia } from "@/lib/instagram/client";
 import { toPostView } from "@/lib/posts-view";
 import { isStale } from "./links";
-import { buildItems, DEFAULT_BIO, safeUrl, type BioSettings } from "./theme";
+import { buildItems, DEFAULT_BIO, mergeStyle, safeUrl, type BioSettings } from "./theme";
 
 /**
  * Refreshes follower count and recent media. Lazy on purpose: whoever opens
@@ -60,6 +60,7 @@ export async function loadBioSettings(accountId: string): Promise<BioSettings> {
     order: row.order,
     hidden: row.hidden,
     manual: row.manual,
+    style: mergeStyle(row.style),
   };
 }
 
@@ -102,7 +103,9 @@ export async function loadPublicBio(username: string) {
   // Manual links without a usable URL would be dead buttons; leave them out.
   const usable: BioSettings = {
     ...settings,
-    manual: settings.manual.filter((m) => m.label.trim() && safeUrl(m.url)),
+    manual: settings.manual.filter(
+      (m) => m.label.trim() && (m.type === "heading" || safeUrl(m.url)),
+    ),
   };
   const items = buildItems(usable, autos).filter((i) => !i.hidden);
 
