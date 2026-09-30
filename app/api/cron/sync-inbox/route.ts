@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { conversation, db, igPost, message } from "@/db";
-import { accessTokenFor, getAccount } from "@/lib/account";
+import { account, conversation, db, igPost, message } from "@/db";
+import { accessTokenFor, type Account } from "@/lib/account";
 import { isAuthorizedCron } from "@/lib/cron-auth";
 import { getConversations, getMedia } from "@/lib/instagram/client";
 
@@ -20,9 +20,18 @@ export async function GET(request: NextRequest) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
-  const acct = await getAccount();
-  if (!acct) return NextResponse.json({ skipped: "no account connected" });
+  const accounts = await db.select().from(account);
+  if (accounts.length === 0) return NextResponse.json({ skipped: "no account connected" });
 
+  // One account failing must never starve the others.
+  const results = [];
+  for (const acct of accounts) {
+    results.push(await syncAccount(acct));
+  }
+  return NextResponse.json({ accounts: results });
+}
+
+async function syncAccount(acct: Account) {
   const token = accessTokenFor(acct);
   let threads = 0;
   let messages = 0;
@@ -99,5 +108,5 @@ export async function GET(request: NextRequest) {
     console.error("[cron] media sync failed", error);
   }
 
-  return NextResponse.json({ threads, messages, posts });
+  return { username: acct.username, threads, messages, posts };
 }

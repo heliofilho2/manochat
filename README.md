@@ -1,4 +1,4 @@
-# Lesschat
+# Manochat
 
 Instagram keyword automation: reply to comments containing your keywords and
 automatically DM those people your link. Built to replace the one slice of
@@ -432,3 +432,11 @@ pnpm db:studio    # browse the database
 - **DM history beyond 20 messages** exists only in your own database — the
   Instagram API caps `GET /me/conversations` at the 20 most recent messages per
   thread, which is why every incoming message is mirrored locally.
+
+---
+
+## Origem
+
+Manochat parte do projeto [less-chat/less-chat](https://github.com/less-chat/less-chat)
+(autor: Nelson). Esse repositório **não declara licença**; enquanto isso não for
+resolvido com o autor, este repo deve permanecer **privado** e não deve ser distribuído.

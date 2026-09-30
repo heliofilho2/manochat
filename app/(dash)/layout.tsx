@@ -18,10 +18,11 @@ export default async function DashboardLayout({ children }: LayoutProps<"/">) {
       <header className="border-b border-line bg-surface">
         <div className="mx-auto flex max-w-5xl items-center gap-6 px-6 py-3">
           <Link href="/automations" className="text-sm font-semibold tracking-tight">
-            Lesschat
+            Manochat
           </Link>
 
           <nav className="flex items-center gap-1">
+            <NavLink href="/dashboard">Dashboard</NavLink>
             <NavLink href="/automations">Automations</NavLink>
             <NavLink href="/inbox">Inbox</NavLink>
           </nav>

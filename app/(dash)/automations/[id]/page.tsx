@@ -78,6 +78,11 @@ export default async function EditAutomationPage({
           replyVariants: row.replyVariants,
           dmText: row.dmText,
           dmLink: row.dmLink,
+          requireFollow: row.requireFollow,
+          openerText: row.openerText,
+          followButtonLabel: row.followButtonLabel,
+          notFollowerText: row.notFollowerText,
+          linkButtonLabel: row.linkButtonLabel,
           status: row.status,
         }}
       />

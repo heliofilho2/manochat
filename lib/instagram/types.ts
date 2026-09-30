@@ -39,7 +39,28 @@ export interface MessagingEvent {
     is_echo?: boolean;
     attachments?: { type: string }[];
   };
+  /** Present when the user tapped a postback button (field `messaging_postbacks`). */
+  postback?: {
+    mid: string;
+    title?: string;
+    payload: string;
+  };
 }
+
+/** A button inside a button-template message. */
+export type Button =
+  | { type: "postback"; title: string; payload: string }
+  | { type: "web_url"; title: string; url: string };
+
+/** The `message` object of a Send API call. */
+export type OutboundMessage =
+  | { text: string }
+  | {
+      attachment: {
+        type: "template";
+        payload: { template_type: "button"; text: string; buttons: Button[] };
+      };
+    };
 
 export interface IgMedia {
   id: string;

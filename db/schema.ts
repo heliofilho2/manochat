@@ -75,6 +75,19 @@ export const automation = pgTable(
     dmText: text("dm_text").notNull(),
     dmLink: text("dm_link"),
 
+    /**
+     * Follow gate. When on, the first DM carries only a postback button and
+     * the link (`dmText`) is sent after `is_user_follow_business` is true.
+     */
+    requireFollow: boolean("require_follow").notNull().default(false),
+    /** First DM text when the gate is on. Null = built-in default. */
+    openerText: text("opener_text"),
+    followButtonLabel: text("follow_button_label").notNull().default("Já sigo ✅"),
+    /** Sent when the tapped user does not follow yet. Null = built-in default. */
+    notFollowerText: text("not_follower_text"),
+    /** When set, the link is delivered as a clickable URL button with this label. */
+    linkButtonLabel: text("link_button_label"),
+
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -156,6 +169,67 @@ export const commentEvent = pgTable(
     uniqueIndex("comment_event_comment_id_idx").on(t.commentId),
     index("comment_event_account_created_idx").on(t.accountId, t.createdAt),
   ],
+);
+
+/* ────────────────────────────────────────────────────────────────────────
+ * Contact — one row per Instagram user (IGSID) who interacted with us.
+ *
+ * `messagingWindowExpiresAt` tracks Meta's 24h standard messaging window:
+ * it is pushed to (last inbound interaction + 24h). Free-form DMs after it
+ * need a recurring-notification opt-in or are refused by Meta.
+ * ──────────────────────────────────────────────────────────────────────── */
+export const contact = pgTable(
+  "contact",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => account.id, { onDelete: "cascade" }),
+    igId: text("ig_id").notNull(),
+    username: text("username"),
+
+    /** Result of the last is_user_follow_business check; null = never checked. */
+    isFollower: boolean("is_follower"),
+    followerCheckedAt: timestamp("follower_checked_at", { withTimezone: true }),
+
+    /** Recurring-notification (Meta opt-in) consent. */
+    optedInRecurring: boolean("opted_in_recurring").notNull().default(false),
+    optedInAt: timestamp("opted_in_at", { withTimezone: true }),
+
+    lastInteractionAt: timestamp("last_interaction_at", { withTimezone: true }),
+    messagingWindowExpiresAt: timestamp("messaging_window_expires_at", {
+      withTimezone: true,
+    }),
+
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("contact_account_ig_idx").on(t.accountId, t.igId)],
+);
+
+export const tag = pgTable(
+  "tag",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => account.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+  },
+  (t) => [uniqueIndex("tag_account_name_idx").on(t.accountId, t.name)],
+);
+
+export const contactTag = pgTable(
+  "contact_tag",
+  {
+    contactId: uuid("contact_id")
+      .notNull()
+      .references(() => contact.id, { onDelete: "cascade" }),
+    tagId: uuid("tag_id")
+      .notNull()
+      .references(() => tag.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("contact_tag_pk_idx").on(t.contactId, t.tagId)],
 );
 
 /* ────────────────────────────────────────────────────────────────────────

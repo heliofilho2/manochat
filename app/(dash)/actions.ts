@@ -22,6 +22,11 @@ const formSchema = z.object({
     .transform((s) => s.split("\n").map((v) => v.trim()).filter(Boolean)),
   dmText: z.string().trim().min(1, "The DM cannot be empty."),
   dmLink: z.string().trim(),
+  requireFollow: z.boolean(),
+  openerText: z.string().trim().max(600),
+  followButtonLabel: z.string().trim().max(20, "Button labels are limited to 20 characters."),
+  notFollowerText: z.string().trim().max(600),
+  linkButtonLabel: z.string().trim().max(20, "Button labels are limited to 20 characters."),
 });
 
 export interface ActionState {
@@ -45,6 +50,11 @@ function parse(formData: FormData) {
     replyVariants: formData.get("replyVariants") ?? "",
     dmText: formData.get("dmText") ?? "",
     dmLink: formData.get("dmLink") ?? "",
+    requireFollow: formData.get("requireFollow") === "on",
+    openerText: formData.get("openerText") ?? "",
+    followButtonLabel: formData.get("followButtonLabel") ?? "",
+    notFollowerText: formData.get("notFollowerText") ?? "",
+    linkButtonLabel: formData.get("linkButtonLabel") ?? "",
   });
 }
 
@@ -60,6 +70,12 @@ function validateForPublish(
   if (!publish) return null;
   if (data.dmText.includes("{link}") && !data.dmLink) {
     return "Add the link before publishing — the DM contains {link} but no URL is set.";
+  }
+  if ((data.requireFollow || data.linkButtonLabel) && !data.dmLink) {
+    return "Add the link — the follow gate and link button both need a URL.";
+  }
+  if (data.dmLink && !/^https?:\/\//i.test(data.dmLink)) {
+    return "The link must start with http:// or https://.";
   }
   if (data.replyEnabled && data.replyVariants.length === 0) {
     return "Add at least one comment reply, or turn off public replies.";

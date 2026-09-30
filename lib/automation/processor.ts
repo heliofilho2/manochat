@@ -3,15 +3,19 @@ import { and, desc, eq } from "drizzle-orm";
 import {
   automation,
   commentEvent,
+  contact,
   conversation,
   db,
   message,
   webhookEvent,
 } from "@/db";
 import { accessTokenFor, getAccountByIgUserId, type Account } from "@/lib/account";
+import { addTag, touchContact } from "@/lib/contacts";
 import {
+  getUserFollowsBusiness,
   InstagramApiError,
   replyToComment,
+  sendDirectMessage,
   sendPrivateReply,
 } from "@/lib/instagram/client";
 import type {
@@ -20,7 +24,15 @@ import type {
   WebhookBody,
   WebhookEntry,
 } from "@/lib/instagram/types";
-import { findMatch, pickReply, renderDm, type MatchableAutomation } from "./matcher";
+import {
+  buildLinkMessage,
+  buildNotFollower,
+  buildOpener,
+  decideUnlock,
+  isWindowOpen,
+  parseUnlockPayload,
+} from "./flow";
+import { findMatch, pickReply, type MatchableAutomation } from "./matcher";
 
 /** Meta refuses private replies to comments older than this. */
 export const PRIVATE_REPLY_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
@@ -88,8 +100,103 @@ async function processEntry(entry: WebhookEntry) {
     }
   }
   for (const event of entry.messaging ?? []) {
-    await mirrorMessage(acct, event);
+    if (event.postback) await handlePostback(acct, event);
+    else await mirrorMessage(acct, event);
   }
+}
+
+/* ────────────────────────────────────────────────────────────────────────
+ * Postback (button tap) → follow check → link
+ * ──────────────────────────────────────────────────────────────────────── */
+
+async function handlePostback(acct: Account, event: MessagingEvent) {
+  const postback = event.postback!;
+  if (event.sender.id === acct.igUserId) return;
+
+  const automationId = parseUnlockPayload(postback.payload);
+  if (!automationId) return;
+
+  const igsid = event.sender.id;
+  const at = new Date(event.timestamp);
+
+  /*
+   * Claim this tap. Meta may redeliver the webhook; the mirrored row keyed
+   * by the postback's mid is what stops a second link/prompt being sent.
+   */
+  const conversationId = `ig:${acct.igUserId}:${igsid}`;
+  await db
+    .insert(conversation)
+    .values({
+      id: conversationId,
+      accountId: acct.id,
+      participantIgId: igsid,
+      lastMessageAt: at,
+      lastMessagePreview: postback.title ?? "button",
+    })
+    .onConflictDoUpdate({
+      target: conversation.id,
+      set: { lastMessageAt: at, lastMessagePreview: postback.title ?? "button" },
+    });
+  const claimed = await db
+    .insert(message)
+    .values({
+      id: `pb:${postback.mid}`,
+      conversationId,
+      fromIgId: igsid,
+      isFromAccount: false,
+      text: postback.title ?? "button",
+      sentAt: at,
+    })
+    .onConflictDoNothing({ target: message.id })
+    .returning({ id: message.id });
+  if (claimed.length === 0) return;
+
+  try {
+    await unlock(acct, automationId, igsid, at);
+  } catch (error) {
+    // Release the claim so the sweeper's retry is not mistaken for a duplicate.
+    await db.delete(message).where(eq(message.id, `pb:${postback.mid}`));
+    throw error;
+  }
+}
+
+async function unlock(acct: Account, automationId: string, igsid: string, at: Date) {
+  // A tap is an inbound interaction: it (re)opens the 24h window.
+  const contactId = await touchContact(acct.id, igsid, null, at);
+
+  const [rule] = await db
+    .select()
+    .from(automation)
+    .where(and(eq(automation.id, automationId), eq(automation.accountId, acct.id)))
+    .limit(1);
+  if (!rule) return;
+
+  const token = accessTokenFor(acct);
+  const isFollower = await getUserFollowsBusiness(token, igsid);
+  await db
+    .update(contact)
+    .set({ isFollower, followerCheckedAt: new Date() })
+    .where(eq(contact.id, contactId));
+
+  const decision = decideUnlock(isFollower);
+  if (decision === "send_link") await addTag(acct.id, contactId, "follower");
+
+  // Window guard for every non-private-reply send.
+  const [c] = await db
+    .select({ expires: contact.messagingWindowExpiresAt })
+    .from(contact)
+    .where(eq(contact.id, contactId))
+    .limit(1);
+  if (!isWindowOpen(c?.expires ?? null)) {
+    throw new Error("24h messaging window closed; not sending.");
+  }
+
+  await sendDirectMessage(
+    token,
+    acct.igUserId,
+    igsid,
+    decision === "send_link" ? buildLinkMessage(rule) : buildNotFollower(rule),
+  );
 }
 
 /* ────────────────────────────────────────────────────────────────────────
@@ -151,6 +258,19 @@ async function handleComment(acct: Account, value: CommentValue) {
   if (claimed.length === 0) return; // Already handled.
   const rowId = claimed[0].id;
 
+  // Contact + tags. Non-critical: never let CRM bookkeeping block the DM.
+  try {
+    const contactId = await touchContact(
+      acct.id,
+      commenterId,
+      value.from?.username ?? null,
+      commentedAt,
+    );
+    await addTag(acct.id, contactId, `kw:${match.keyword}`);
+  } catch (error) {
+    console.error("[contacts] upsert failed", error);
+  }
+
   const token = accessTokenFor(acct);
 
   // Public reply. A failure here must not block the DM — the DM is the part
@@ -188,7 +308,7 @@ async function handleComment(acct: Account, value: CommentValue) {
       token,
       acct.igUserId,
       value.id,
-      renderDm(rule.dmText, rule.dmLink),
+      buildOpener(rule),
     );
     await db
       .update(commentEvent)

@@ -22,6 +22,11 @@ export interface AutomationDefaults {
   replyVariants: string[];
   dmText: string;
   dmLink: string | null;
+  requireFollow: boolean;
+  openerText: string | null;
+  followButtonLabel: string;
+  notFollowerText: string | null;
+  linkButtonLabel: string | null;
   status: string;
 }
 
@@ -70,7 +75,15 @@ export function AutomationForm({ action, defaults, posts, submitLabel }: Props) 
   const [dmLink, setDmLink] = useState(defaults.dmLink ?? "");
   const [keywords, setKeywords] = useState(defaults.keywords.join(", "));
 
-  const previewDm = dmText.replace(/\{link\}/g, dmLink || "{link}");
+  const [requireFollow, setRequireFollow] = useState(defaults.requireFollow);
+  const [followLabel, setFollowLabel] = useState(defaults.followButtonLabel);
+  const [linkLabel, setLinkLabel] = useState(defaults.linkButtonLabel ?? "");
+  const [openerText, setOpenerText] = useState(defaults.openerText ?? "");
+
+  // With a URL button the link sits on the button, not in the message body.
+  const previewDm = linkLabel
+    ? dmText.replace(/\{link\}/g, "").trim()
+    : dmText.replace(/\{link\}/g, dmLink || "{link}");
 
   return (
     <form action={formAction} className="grid gap-5 lg:grid-cols-[1fr_20rem]">
@@ -265,6 +278,63 @@ export function AutomationForm({ action, defaults, posts, submitLabel }: Props) 
           ) : null}
         </Step>
 
+        <Step
+          n={5}
+          title="Follow gate & buttons"
+          hint="Optional. Ask them to follow before the link is released, and deliver it as a tappable button."
+        >
+          <label className="flex cursor-pointer items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              name="requireFollow"
+              checked={requireFollow}
+              onChange={(e) => setRequireFollow(e.target.checked)}
+              className="mt-1"
+            />
+            <span>
+              Only send the link to followers
+              <span className="block text-xs text-muted">
+                The first DM has a button; the link is sent only if they follow you.
+              </span>
+            </span>
+          </label>
+
+          <div className={requireFollow ? "mt-3 space-y-2" : "hidden"}>
+            <textarea
+              name="openerText"
+              rows={2}
+              value={openerText}
+              onChange={(e) => setOpenerText(e.target.value)}
+              placeholder="First DM (before the link). Empty = default."
+              className="field"
+            />
+            <input
+              name="followButtonLabel"
+              value={followLabel}
+              onChange={(e) => setFollowLabel(e.target.value)}
+              maxLength={20}
+              placeholder="Button label (max 20)"
+              className="field"
+            />
+            <textarea
+              name="notFollowerText"
+              rows={2}
+              defaultValue={defaults.notFollowerText ?? ""}
+              placeholder="If they don't follow yet, we say… Empty = default."
+              className="field"
+            />
+          </div>
+
+          <input
+            name="linkButtonLabel"
+            value={linkLabel}
+            onChange={(e) => setLinkLabel(e.target.value)}
+            maxLength={20}
+            placeholder="Link button label, e.g. Acessar agora (empty = plain link)"
+            className="field mt-3"
+          />
+        </Step>
+
         {state.error ? (
           <p className="rounded-lg bg-bad-soft px-3 py-2 text-sm text-bad">
             {state.error}
@@ -336,8 +406,27 @@ export function AutomationForm({ action, defaults, posts, submitLabel }: Props) 
           <div className="mt-4">
             <p className="text-xs text-muted">They get a DM</p>
             <div className="mt-1.5 rounded-2xl rounded-br-sm bg-accent px-3.5 py-2.5 text-sm break-words whitespace-pre-wrap text-white">
-              {previewDm || "your message"}
+              {requireFollow
+                ? openerText || "Oi! Toque no botão abaixo para receber o link 👇"
+                : previewDm || "your message"}
             </div>
+            <div className="mt-1.5 flex flex-col items-end gap-1">
+              {requireFollow ? (
+                <span className="rounded-full border border-accent px-3 py-1 text-xs text-accent">
+                  {followLabel || "Já sigo ✅"}
+                </span>
+              ) : linkLabel ? (
+                <span className="rounded-full border border-accent px-3 py-1 text-xs text-accent">
+                  {linkLabel} ↗
+                </span>
+              ) : null}
+            </div>
+            {requireFollow ? (
+              <p className="mt-2 text-xs text-muted">
+                Then, if they follow: &ldquo;{previewDm || "your message"}&rdquo;
+                {linkLabel ? ` + button “${linkLabel}”` : ""}
+              </p>
+            ) : null}
           </div>
 
           <p className="mt-5 border-t border-line pt-4 text-xs leading-relaxed text-muted">

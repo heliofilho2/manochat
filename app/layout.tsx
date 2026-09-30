@@ -6,7 +6,7 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Lesschat",
+  title: "Manochat",
   description: "Instagram keyword automations: auto-reply to comments and DM the link.",
 };
 

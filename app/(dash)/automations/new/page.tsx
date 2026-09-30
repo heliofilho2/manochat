@@ -24,16 +24,20 @@ export default async function NewAutomationPage() {
         posts={posts}
         submitLabel="Publish"
         defaults={{
-          name: "Lesschat",
+          name: "Minha automação",
           keywords: [],
           matchMode: "exact_word",
           scope: "all_posts",
           postIds: [],
           replyEnabled: true,
-          replyVariants: ["Just sent it! 📩", "Check your DMs 🙌", "Sent — enjoy!"],
-          dmText:
-            "Hey! Thanks for commenting! You can find the guides here: {link}",
+          replyVariants: ["Te mandei no direct! 📩", "Confere seu direct 🙌", "Enviado, aproveita! ✨"],
+          dmText: "Oi! Valeu por comentar 🙌 Aqui está o link: {link}",
           dmLink: "",
+          requireFollow: false,
+          openerText: null,
+          followButtonLabel: "Já sigo ✅",
+          notFollowerText: null,
+          linkButtonLabel: null,
           status: "draft",
         }}
       />

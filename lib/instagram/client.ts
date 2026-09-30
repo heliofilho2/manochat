@@ -1,5 +1,5 @@
 import "server-only";
-import type { IgMedia } from "./types";
+import type { IgMedia, OutboundMessage } from "./types";
 
 const API_VERSION = "v23.0";
 const BASE = `https://graph.instagram.com/${API_VERSION}`;
@@ -84,7 +84,7 @@ export function subscribeWebhooks(token: string) {
   return call<{ success: boolean }>("/me/subscribed_apps", {
     method: "POST",
     params: {
-      subscribed_fields: "comments,messages",
+      subscribed_fields: "comments,messages,messaging_postbacks",
       access_token: token,
     },
   });
@@ -110,17 +110,53 @@ export function sendPrivateReply(
   token: string,
   igUserId: string,
   commentId: string,
-  text: string,
+  message: string | OutboundMessage,
+) {
+  return send(token, igUserId, { comment_id: commentId }, message);
+}
+
+/**
+ * Sends a DM to a user by IGSID. Only valid inside Meta's 24h window after
+ * the user's last interaction (callers must check `isWindowOpen` first).
+ */
+export function sendDirectMessage(
+  token: string,
+  igUserId: string,
+  recipientId: string,
+  message: string | OutboundMessage,
+) {
+  return send(token, igUserId, { id: recipientId }, message);
+}
+
+function send(
+  token: string,
+  igUserId: string,
+  recipient: { comment_id: string } | { id: string },
+  message: string | OutboundMessage,
 ) {
   return call<{ recipient_id: string; message_id: string }>(`/${igUserId}/messages`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     params: { access_token: token },
     body: JSON.stringify({
-      recipient: { comment_id: commentId },
-      message: { text },
+      recipient,
+      message: typeof message === "string" ? { text: message } : message,
     }),
   });
+}
+
+/**
+ * Whether this user follows the business. Only answerable for users who have
+ * interacted with the account (e.g. just tapped a postback button).
+ */
+export async function getUserFollowsBusiness(
+  token: string,
+  igsid: string,
+): Promise<boolean> {
+  const res = await call<{ is_user_follow_business?: boolean }>(`/${igsid}`, {
+    params: { fields: "is_user_follow_business", access_token: token },
+  });
+  return res.is_user_follow_business === true;
 }
 
 interface ConversationsResponse {
