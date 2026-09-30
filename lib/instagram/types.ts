@@ -38,6 +38,8 @@ export interface MessagingEvent {
     text?: string;
     is_echo?: boolean;
     attachments?: { type: string }[];
+    /** Present when the message is a reply to one of our stories. */
+    reply_to?: { story?: { id?: string; url?: string } };
   };
   /** Present when the user tapped a postback button (field `messaging_postbacks`). */
   postback?: {

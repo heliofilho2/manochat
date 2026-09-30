@@ -74,6 +74,52 @@ export function getMedia(token: string, limit = 50) {
   });
 }
 
+/** Username/name of someone who messaged the account (needs their DM to exist). */
+export function getUserProfile(token: string, igsid: string) {
+  return call<{ username?: string; name?: string }>(`/${igsid}`, {
+    params: { fields: "username,name", access_token: token },
+  });
+}
+
+/** Currently live stories (they disappear after 24h), for the story picker. */
+export function getStories(token: string) {
+  return call<{
+    data: {
+      id: string;
+      media_type?: string;
+      media_url?: string;
+      thumbnail_url?: string;
+      permalink?: string;
+      timestamp?: string;
+    }[];
+  }>("/me/stories", {
+    params: {
+      fields: "id,media_type,media_url,thumbnail_url,permalink,timestamp",
+      access_token: token,
+    },
+  });
+}
+
+/** Reacts to a received message (used for the story-reply heart). */
+export function reactToMessage(
+  token: string,
+  igUserId: string,
+  recipientId: string,
+  messageId: string,
+  reaction = "love",
+) {
+  return call<{ recipient_id: string }>(`/${igUserId}/messages`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    params: { access_token: token },
+    body: JSON.stringify({
+      recipient: { id: recipientId },
+      sender_action: "react",
+      payload: { message_id: messageId, reaction },
+    }),
+  });
+}
+
 /** Follower count of the connected account (instagram_business_basic). */
 export async function getFollowersCount(token: string): Promise<number | null> {
   const res = await call<{ followers_count?: number }>("/me", {

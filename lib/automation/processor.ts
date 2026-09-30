@@ -6,14 +6,18 @@ import {
   contact,
   conversation,
   db,
+  lead,
   message,
   webhookEvent,
 } from "@/db";
 import { accessTokenFor, getAccountByIgUserId, type Account } from "@/lib/account";
 import { addTag, touchContact } from "@/lib/contacts";
+import { forwardLead } from "@/lib/leads";
 import {
   getUserFollowsBusiness,
+  getUserProfile,
   InstagramApiError,
+  reactToMessage,
   replyToComment,
   sendDirectMessage,
   sendPrivateReply,
@@ -33,6 +37,19 @@ import {
   parseUnlockPayload,
 } from "./flow";
 import { findMatch, pickReply, type MatchableAutomation } from "./matcher";
+import {
+  DEFAULT_EMAIL_PROMPT,
+  DEFAULT_PHONE_PROMPT,
+  DEFAULT_THANKS,
+  RETRY_EMAIL,
+  RETRY_PHONE,
+  firstStep,
+  matchStoryReply,
+  parseEmail,
+  parsePhone,
+  stepAfter,
+  type StoryRule,
+} from "./story";
 
 /** Meta refuses private replies to comments older than this. */
 export const PRIVATE_REPLY_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
@@ -100,8 +117,12 @@ async function processEntry(entry: WebhookEntry) {
     }
   }
   for (const event of entry.messaging ?? []) {
-    if (event.postback) await handlePostback(acct, event);
-    else await mirrorMessage(acct, event);
+    if (event.postback) {
+      await handlePostback(acct, event);
+    } else {
+      await mirrorMessage(acct, event);
+      await handleInboundMessage(acct, event);
+    }
   }
 }
 
@@ -201,6 +222,9 @@ async function unlock(acct: Account, automationId: string, igsid: string, at: Da
     igsid,
     decision === "send_link" ? buildLinkMessage(rule) : buildNotFollower(rule),
   );
+  if (decision === "send_link" && rule.kind === "story") {
+    await afterLink(acct, rule, igsid, token);
+  }
 }
 
 /* ────────────────────────────────────────────────────────────────────────
@@ -221,7 +245,13 @@ async function handleComment(acct: Account, value: CommentValue) {
   const candidates = (await db
     .select()
     .from(automation)
-    .where(and(eq(automation.accountId, acct.id), eq(automation.status, "live")))
+    .where(
+      and(
+        eq(automation.accountId, acct.id),
+        eq(automation.status, "live"),
+        eq(automation.kind, "comment"),
+      ),
+    )
     .orderBy(desc(automation.createdAt))) as MatchableAutomation[];
 
   const match = findMatch(candidates, {
@@ -382,4 +412,264 @@ async function mirrorMessage(acct: Account, event: MessagingEvent) {
       sentAt,
     })
     .onConflictDoNothing({ target: message.id });
+}
+
+/* ────────────────────────────────────────────────────────────────────────
+ * Inbound DMs: story replies and lead answers
+ * ──────────────────────────────────────────────────────────────────────── */
+
+async function handleInboundMessage(acct: Account, event: MessagingEvent) {
+  const msg = event.message;
+  if (!msg?.mid || msg.is_echo || event.sender.id === acct.igUserId) return;
+
+  const at = new Date(event.timestamp);
+  // Anything the person sends reopens the 24h window.
+  await touchContact(acct.id, event.sender.id, null, at);
+
+  if (msg.reply_to?.story) await handleStoryReply(acct, event);
+  else await handleLeadAnswer(acct, event);
+}
+
+async function handleStoryReply(acct: Account, event: MessagingEvent) {
+  const msg = event.message!;
+  const igsid = event.sender.id;
+  const at = new Date(event.timestamp);
+  const text = msg.text ?? "";
+  const storyId = msg.reply_to?.story?.id ?? null;
+
+  const candidates = (await db
+    .select()
+    .from(automation)
+    .where(
+      and(
+        eq(automation.accountId, acct.id),
+        eq(automation.status, "live"),
+        eq(automation.kind, "story"),
+      ),
+    )
+    .orderBy(desc(automation.createdAt))) as (typeof automation.$inferSelect)[];
+
+  const match = matchStoryReply(candidates as StoryRule[], { text, storyId });
+  if (!match) return;
+  const rule = candidates.find((c) => c.id === match.rule.id)!;
+
+  // One automated answer per story reply, however often the webhook repeats.
+  const claimed = await db
+    .insert(commentEvent)
+    .values({
+      accountId: acct.id,
+      automationId: rule.id,
+      commentId: `story:${msg.mid}`,
+      mediaId: storyId,
+      commentText: text || "(reação ao story)",
+      matchedKeyword: match.trigger,
+      fromIgId: igsid,
+      replyStatus: "skipped",
+      dmStatus: "pending",
+      commentedAt: at,
+    })
+    .onConflictDoNothing({ target: commentEvent.commentId })
+    .returning({ id: commentEvent.id });
+  if (claimed.length === 0) return;
+  const rowId = claimed[0].id;
+
+  const token = accessTokenFor(acct);
+  // Webhooks carry only the scoped id; ask Instagram who this is.
+  let username: string | null = null;
+  try {
+    username = (await getUserProfile(token, igsid)).username ?? null;
+    if (username) {
+      await db.update(commentEvent).set({ fromUsername: username }).where(eq(commentEvent.id, rowId));
+    }
+  } catch (error) {
+    console.error("[story] profile lookup failed", error);
+  }
+
+  let contactId: string | null = null;
+  try {
+    contactId = await touchContact(acct.id, igsid, username, at);
+    await addTag(acct.id, contactId, "story");
+    if (rule.keywords.length > 0) await addTag(acct.id, contactId, `kw:${match.trigger}`);
+  } catch (error) {
+    console.error("[contacts] story upsert failed", error);
+  }
+
+  if (rule.reactHeart) {
+    try {
+      await reactToMessage(token, acct.igUserId, igsid, msg.mid);
+    } catch (error) {
+      console.error("[story] heart reaction failed", error);
+    }
+  }
+
+  // The person becomes a lead right away; e-mail/phone are added if asked.
+  const [created] = await db
+    .insert(lead)
+    .values({
+      accountId: acct.id,
+      automationId: rule.id,
+      igId: igsid,
+      username,
+      source: "story",
+      trigger: match.trigger,
+      step: "done",
+    })
+    .returning({ id: lead.id });
+
+  try {
+    if (rule.requireFollow) {
+      const isFollower = await getUserFollowsBusiness(token, igsid);
+      if (contactId) {
+        await db
+          .update(contact)
+          .set({ isFollower, followerCheckedAt: new Date() })
+          .where(eq(contact.id, contactId));
+      }
+      if (!isFollower) {
+        await sendDirectMessage(token, acct.igUserId, igsid, buildNotFollower(rule));
+        await db.update(commentEvent).set({ dmStatus: "sent" }).where(eq(commentEvent.id, rowId));
+        void forwardLead(created.id, "lead.created");
+        return;
+      }
+      if (contactId) await addTag(acct.id, contactId, "follower");
+    }
+
+    await sendDirectMessage(token, acct.igUserId, igsid, buildLinkMessage(rule));
+    await db.update(commentEvent).set({ dmStatus: "sent" }).where(eq(commentEvent.id, rowId));
+    await afterLink(acct, rule, igsid, token, created.id);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    await db
+      .update(commentEvent)
+      .set({ dmStatus: "failed", dmError: reason })
+      .where(eq(commentEvent.id, rowId));
+    console.error("[story] DM failed", reason);
+  }
+}
+
+/**
+ * After the link went out: start the question flow (or just report the lead).
+ * Finds the person's newest lead for this automation when no id is given
+ * (the "Já sigo" button path).
+ */
+async function afterLink(
+  acct: Account,
+  rule: typeof automation.$inferSelect,
+  igsid: string,
+  token: string,
+  leadId?: string,
+) {
+  let id = leadId;
+  if (!id) {
+    const [l] = await db
+      .select({ id: lead.id })
+      .from(lead)
+      .where(
+        and(eq(lead.accountId, acct.id), eq(lead.igId, igsid), eq(lead.automationId, rule.id)),
+      )
+      .orderBy(desc(lead.createdAt))
+      .limit(1);
+    id = l?.id;
+  }
+  if (!id) return;
+
+  const step = firstStep(rule);
+  await db.update(lead).set({ step, updatedAt: new Date() }).where(eq(lead.id, id));
+  if (step === "done") {
+    void forwardLead(id, "lead.created");
+    return;
+  }
+  const prompt =
+    step === "email"
+      ? rule.emailPrompt || DEFAULT_EMAIL_PROMPT
+      : rule.phonePrompt || DEFAULT_PHONE_PROMPT;
+  await sendDirectMessage(token, acct.igUserId, igsid, { text: prompt });
+}
+
+/** A plain DM from someone we are waiting on for an e-mail / phone answer. */
+async function handleLeadAnswer(acct: Account, event: MessagingEvent) {
+  const msg = event.message!;
+  const igsid = event.sender.id;
+  const text = msg.text?.trim();
+  if (!text) return;
+
+  const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const [l] = await db
+    .select()
+    .from(lead)
+    .where(and(eq(lead.accountId, acct.id), eq(lead.igId, igsid)))
+    .orderBy(desc(lead.updatedAt))
+    .limit(1);
+  if (!l || l.step === "done" || l.updatedAt < dayAgo || !l.automationId) return;
+
+  const [rule] = await db
+    .select()
+    .from(automation)
+    .where(eq(automation.id, l.automationId))
+    .limit(1);
+  if (!rule) return;
+
+  // Claim this answer so a repeated webhook can't advance the flow twice.
+  const claimed = await db
+    .insert(message)
+    .values({
+      id: `lead:${msg.mid}`,
+      conversationId: `ig:${acct.igUserId}:${igsid}`,
+      fromIgId: igsid,
+      isFromAccount: false,
+      text,
+      sentAt: new Date(event.timestamp),
+    })
+    .onConflictDoNothing({ target: message.id })
+    .returning({ id: message.id });
+  if (claimed.length === 0) return;
+
+  const token = accessTokenFor(acct);
+  const send = (t: string) => sendDirectMessage(token, acct.igUserId, igsid, { text: t });
+
+  if (l.step === "email") {
+    const email = parseEmail(text);
+    if (!email) {
+      await send(RETRY_EMAIL);
+      return;
+    }
+    const next = stepAfter("email", rule);
+    await db.update(lead).set({ email, step: next, updatedAt: new Date() }).where(eq(lead.id, l.id));
+    await finishOrAsk(acct, rule, l, next, send);
+    return;
+  }
+  if (l.step === "phone") {
+    const phone = parsePhone(text);
+    if (!phone) {
+      await send(RETRY_PHONE);
+      return;
+    }
+    await db
+      .update(lead)
+      .set({ phone, step: "done", updatedAt: new Date() })
+      .where(eq(lead.id, l.id));
+    await finishOrAsk(acct, rule, l, "done", send);
+  }
+}
+
+async function finishOrAsk(
+  acct: Account,
+  rule: typeof automation.$inferSelect,
+  l: typeof lead.$inferSelect,
+  next: "email" | "phone" | "done",
+  send: (t: string) => Promise<unknown>,
+) {
+  try {
+    const [c] = await db
+      .select({ id: contact.id })
+      .from(contact)
+      .where(and(eq(contact.accountId, acct.id), eq(contact.igId, l.igId)))
+      .limit(1);
+    if (c) await addTag(acct.id, c.id, "lead");
+  } catch (error) {
+    console.error("[leads] tagging failed", error);
+  }
+  void forwardLead(l.id, "lead.updated");
+  if (next === "phone") await send(rule.phonePrompt || DEFAULT_PHONE_PROMPT);
+  else if (next === "done") await send(rule.thanksText || DEFAULT_THANKS);
 }

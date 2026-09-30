@@ -32,6 +32,8 @@ export const account = pgTable("account", {
   /** Cached for the public link-in-bio page; refreshed lazily every few hours. */
   followersCount: integer("followers_count"),
   followersSyncedAt: timestamp("followers_synced_at", { withTimezone: true }),
+  /** Optional HTTPS endpoint that receives each captured lead as JSON. */
+  leadsWebhookUrl: text("leads_webhook_url"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -90,6 +92,21 @@ export const automation = pgTable(
     notFollowerText: text("not_follower_text"),
     /** When set, the link is delivered as a clickable URL button with this label. */
     linkButtonLabel: text("link_button_label"),
+
+    /**
+     * comment | story. A story automation fires on a DM that replies to a
+     * story; it reuses `scope`/`postIds` (story ids) and `keywords` (empty =
+     * any reply).
+     */
+    kind: text("kind").notNull().default("comment"),
+    /** Story: react to the person's reply with a heart. */
+    reactHeart: boolean("react_heart").notNull().default(false),
+    /** Story: after the link, ask for e-mail / WhatsApp and save them as a lead. */
+    collectEmail: boolean("collect_email").notNull().default(false),
+    collectPhone: boolean("collect_phone").notNull().default(false),
+    emailPrompt: text("email_prompt"),
+    phonePrompt: text("phone_prompt"),
+    thanksText: text("thanks_text"),
 
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -347,3 +364,33 @@ export const deletionRequest = pgTable("deletion_request", {
   email: text("email").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/* ────────────────────────────────────────────────────────────────────────
+ * Lead — a person captured by a story automation. `step` drives the little
+ * question flow in DMs: email → phone → done.
+ * ──────────────────────────────────────────────────────────────────────── */
+export const lead = pgTable(
+  "lead",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => account.id, { onDelete: "cascade" }),
+    automationId: uuid("automation_id").references(() => automation.id, {
+      onDelete: "set null",
+    }),
+    igId: text("ig_id").notNull(),
+    username: text("username"),
+    /** story | comment */
+    source: text("source").notNull().default("story"),
+    /** What the person replied with (the keyword / emoji). */
+    trigger: text("trigger"),
+    email: text("email"),
+    phone: text("phone"),
+    /** email | phone | done: which answer we are waiting for. */
+    step: text("step").notNull().default("done"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("lead_account_created_idx").on(t.accountId, t.createdAt)],
+);

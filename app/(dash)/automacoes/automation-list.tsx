@@ -12,6 +12,7 @@ import { setAutomationStatus } from "../actions";
 
 export interface ListItem {
   id: string;
+  kind: "comment" | "story";
   name: string;
   status: "active" | "paused" | "draft";
   keywords: string[];
@@ -132,9 +133,13 @@ export function AutomationList({ items: initial }: { items: ListItem[] }) {
           {shown.map((a, ix) => {
             const [label, bg, fg] = ST[a.status];
             const on = a.status === "active";
-            const specific = a.target === "specific" && a.thumbs.length > 0;
-            const tgt =
-              a.target === "all"
+            const isStory = a.kind === "story";
+            const specific = !isStory && a.target === "specific" && a.thumbs.length > 0;
+            const tgt = isStory
+              ? a.target === "specific"
+                ? `${a.postCount} ${a.postCount === 1 ? "story" : "stories"}`
+                : "qualquer story"
+              : a.target === "all"
                 ? "todos os posts"
                 : a.target === "future"
                   ? "posts a partir de agora"
@@ -159,9 +164,11 @@ export function AutomationList({ items: initial }: { items: ListItem[] }) {
                     ))
                   ) : (
                     <div className="flex h-16 w-16 flex-col items-center justify-center gap-0.5 rounded-xl border border-line bg-bg text-center">
-                      <span className="text-base leading-none font-bold">{a.target === "future" ? "→" : "∗"}</span>
+                      <span className="text-base leading-none font-bold">
+                        {isStory ? "◐" : a.target === "future" ? "→" : "∗"}
+                      </span>
                       <span className="text-[10px] leading-[1.1] font-medium text-muted">
-                        {a.target === "future" ? "Novos posts" : "Todos"}
+                        {isStory ? "Story" : a.target === "future" ? "Novos posts" : "Todos"}
                       </span>
                     </div>
                   )}
@@ -178,7 +185,7 @@ export function AutomationList({ items: initial }: { items: ListItem[] }) {
                     </span>
                   </div>
                   <div className="flex flex-wrap items-center gap-1.5">
-                    {(a.keywords.length ? a.keywords : ["—"]).map((k) => (
+                    {(a.keywords.length ? a.keywords : [isStory ? "QUALQUER RESPOSTA" : "—"]).map((k) => (
                       <span
                         key={k}
                         className="h-[26px] rounded-[7px] border border-line bg-bg px-[9px] text-xs leading-[26px] font-semibold tracking-[0.03em]"
@@ -187,7 +194,8 @@ export function AutomationList({ items: initial }: { items: ListItem[] }) {
                       </span>
                     ))}
                     <span className="text-[13px] text-muted">
-                      {a.match === "exact" ? "Palavra exata" : "Contém"} · {tgt}
+                      {a.keywords.length === 0 && isStory ? "" : `${a.match === "exact" ? "Palavra exata" : "Contém"} · `}
+                      {tgt}
                     </span>
                   </div>
                 </div>

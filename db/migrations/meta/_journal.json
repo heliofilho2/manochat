@@ -29,6 +29,13 @@
       "when": 1790742147681,
       "tag": "0003_bio_config_deletion",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790768890356,
+      "tag": "0004_story_leads",
+      "breakpoints": true
     }
   ]
 }

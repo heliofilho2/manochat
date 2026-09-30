@@ -30,6 +30,8 @@ export function buildConvo(d: AutomationDraft, follows: boolean): ConvoItem[] {
     host,
   });
 
+  if (d.kind === "story") return buildStoryConvo(d, follows, delivery, btn);
+
   const convo: ConvoItem[] = [
     { kind: "bot", text: d.dmInitial || "…", btn },
     { kind: "user", text: btn },
@@ -44,6 +46,32 @@ export function buildConvo(d: AutomationDraft, follows: boolean): ConvoItem[] {
   } else {
     convo.push(delivery());
   }
+  return convo;
+}
+
+/** Story reply → (follow gate) → link → e-mail / WhatsApp questions → thanks. */
+function buildStoryConvo(
+  d: AutomationDraft,
+  follows: boolean,
+  delivery: () => ConvoItem,
+  btn: string,
+): ConvoItem[] {
+  const convo: ConvoItem[] = [];
+  if (d.requireFollow && !follows) {
+    convo.push(
+      { kind: "bot", text: d.dmNonFollower || "…", btn },
+      { kind: "note", text: "Depois que a pessoa seguir e tocar no botão" },
+      { kind: "user", text: btn },
+    );
+  }
+  convo.push(delivery());
+  if (d.collectEmail) {
+    convo.push({ kind: "bot", text: d.emailPrompt || "…" }, { kind: "user", text: "julia@email.com" });
+  }
+  if (d.collectPhone) {
+    convo.push({ kind: "bot", text: d.phonePrompt || "…" }, { kind: "user", text: "(31) 99999-8888" });
+  }
+  if (d.collectEmail || d.collectPhone) convo.push({ kind: "bot", text: d.thanksText || "…" });
   return convo;
 }
 
@@ -101,6 +129,23 @@ export function ConversationPreview({
 
   const thread = (
     <>
+      {d.kind === "story" ? (
+        <div className="flex flex-col gap-2 rounded-2xl bg-bg p-3 text-ink">
+          <span className="text-xs font-medium text-muted">Resposta ao seu story</span>
+          <div className="flex items-start gap-2">
+            {mobile ? null : (
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#D8D0C0] text-[10px] font-bold">
+                JM
+              </span>
+            )}
+            <span className="text-sm leading-[1.4]">
+              <strong className="font-semibold">julia.m</strong>{" "}
+              {d.anyWords ? "🔥" : d.keywords[0] || "PALAVRA"}
+              {d.reactHeart ? <span className="ml-1.5 text-accent-ink">♥ curtida</span> : null}
+            </span>
+          </div>
+        </div>
+      ) : (
       <div className="flex flex-col gap-2.5 rounded-2xl bg-bg p-3 text-ink">
         {post && !mobile ? (
           <div className="flex items-center gap-2 text-xs font-medium text-muted">
@@ -143,6 +188,7 @@ export function ConversationPreview({
           </div>
         ) : null}
       </div>
+      )}
       <div className="flex items-center gap-2 text-[11px] font-medium tracking-[0.04em] text-muted">
         <span className="h-px flex-1 bg-fill" />
         DIRECT

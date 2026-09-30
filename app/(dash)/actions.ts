@@ -10,8 +10,10 @@ import { getSession } from "@/lib/session";
 
 const draftSchema = z.object({
   id: z.string().nullable(),
+  kind: z.enum(["comment", "story"]),
   name: z.string().max(60),
   keywords: z.array(z.string().max(60)).max(30),
+  anyWords: z.boolean(),
   match: z.enum(["exact", "contains"]),
   target: z.enum(["specific", "all", "future"]),
   postIds: z.array(z.string().max(100)).max(200),
@@ -26,6 +28,12 @@ const draftSchema = z.object({
   url: z.string().max(2000),
   linkButton: z.boolean(),
   linkLabel: z.string().max(20),
+  reactHeart: z.boolean(),
+  collectEmail: z.boolean(),
+  collectPhone: z.boolean(),
+  emailPrompt: z.string().max(300),
+  phonePrompt: z.string().max(300),
+  thanksText: z.string().max(300),
 });
 
 export type SaveResult =

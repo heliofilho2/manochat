@@ -16,6 +16,7 @@ export default async function AutomationsPage() {
     db
       .select({
         id: automation.id,
+        kind: automation.kind,
         name: automation.name,
         status: automation.status,
         keywords: automation.keywords,
@@ -37,6 +38,7 @@ export default async function AutomationsPage() {
   const byId = new Map(posts.map((p) => [p.id, p]));
   const items: ListItem[] = rows.map((r) => ({
     id: r.id,
+    kind: r.kind === "story" ? "story" : "comment",
     name: r.name,
     status: r.status === "live" ? "active" : r.status === "paused" ? "paused" : "draft",
     keywords: r.keywords.map((k) => k.toUpperCase()),

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { IconBolt, IconChevrons, IconDashboard, IconInbox, IconLink, IconWarn } from "./icons";
+import { IconBolt, IconChevrons, IconDashboard, IconInbox, IconLink, IconUsers, IconWarn } from "./icons";
 import { Logo, LogoMark } from "./logo";
 import { ToastProvider } from "./toast";
 
@@ -20,6 +20,7 @@ const NAV = [
   { href: "/painel", label: "Painel", tab: "Painel", Icon: IconDashboard },
   { href: "/automacoes", label: "Automações", tab: "Automações", Icon: IconBolt },
   { href: "/entrada", label: "Caixa de entrada", tab: "Entrada", Icon: IconInbox },
+  { href: "/leads", label: "Leads", tab: "Leads", Icon: IconUsers },
   { href: "/bio", label: "Minha página de bio", tab: "Bio", Icon: IconLink },
 ] as const;
 
@@ -170,7 +171,7 @@ export function AppShell({
       </div>
 
       {/* Tab bar (mobile) */}
-      <nav className="fixed right-0 bottom-0 left-0 z-30 grid h-[68px] grid-cols-4 border-t border-line bg-white pb-[env(safe-area-inset-bottom)] min-[820px]:hidden">
+      <nav className="fixed right-0 bottom-0 left-0 z-30 grid h-[68px] grid-cols-5 border-t border-line bg-white pb-[env(safe-area-inset-bottom)] min-[820px]:hidden">
         {NAV.map(({ href, tab, Icon }) => {
           const on = isActive(href);
           return (

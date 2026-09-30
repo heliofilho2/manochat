@@ -8,6 +8,8 @@ import { Switch } from "@/components/switch";
 import { useToast } from "@/components/toast";
 import {
   addKeywords,
+  STEP_IDS,
+  STEP_LABELS,
   validate,
   type AutomationDraft,
   type DraftStatus,
@@ -16,7 +18,6 @@ import type { PostView } from "@/lib/posts-view";
 import { deleteAutomation, saveAutomation } from "../actions";
 import { ConversationPreview } from "./conversation-preview";
 
-const STEPS = ["Nome", "Palavras", "Posts", "Resposta pública", "Mensagens", "Link e regras"];
 const EMOJIS = ["😊", "🙌", "💛", "🔥", "✨", "👇", "📩", "🎁"];
 const STATUS_BADGE = {
   active: ["Ativa", "var(--color-success-bg)", "var(--color-success)"],
@@ -68,6 +69,71 @@ function RadioCard({
   );
 }
 
+function PickGrid({
+  items,
+  selected,
+  onToggle,
+}: {
+  items: PostView[];
+  selected: string[];
+  onToggle: (id: string) => void;
+}) {
+  return (
+    <div className="grid grid-cols-[repeat(auto-fill,minmax(96px,1fr))] gap-2">
+      {items.map((p) => {
+        const sel = selected.includes(p.id);
+        return (
+          <button
+            key={p.id}
+            type="button"
+            aria-pressed={sel}
+            onClick={() => onToggle(p.id)}
+            className="relative aspect-[4/5] cursor-pointer overflow-hidden rounded-xl border-[3px] bg-transparent p-0"
+            style={{ borderColor: sel ? "var(--color-accent)" : "transparent" }}
+          >
+            <div className="absolute inset-0 overflow-hidden rounded-[9px]">
+              <PostThumb post={p} />
+            </div>
+            <span
+              className="absolute top-1.5 left-1.5 flex h-6 w-6 items-center justify-center rounded-full border-2 border-white text-[13px] font-bold shadow-[0_1px_3px_rgba(0,0,0,.25)]"
+              style={{ background: sel ? "var(--color-accent)" : "rgba(255,252,247,0.5)" }}
+            >
+              {sel ? "✓" : ""}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function ToggleRow({
+  title,
+  help,
+  checked,
+  onChange,
+  children,
+}: {
+  title: string;
+  help?: string;
+  checked: boolean;
+  onChange: () => void;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-3 rounded-2xl bg-bg p-4">
+      <div className="flex items-start gap-4">
+        <div className="flex flex-1 flex-col gap-1">
+          <strong className="text-base font-semibold">{title}</strong>
+          {help ? <span className="text-sm leading-normal text-ink-2">{help}</span> : null}
+        </div>
+        <Switch size="lg" checked={checked} onChange={onChange} label={title} />
+      </div>
+      {checked ? children : null}
+    </div>
+  );
+}
+
 function EmojiRow({ onPick, extra }: { onPick: (e: string) => void; extra?: React.ReactNode }) {
   return (
     <div className="flex flex-wrap items-center gap-0.5">
@@ -108,6 +174,10 @@ export function AutomationEditor({
   const [pv, setPv] = useState(false);
 
   const up = (patch: Partial<AutomationDraft>) => setD((cur) => ({ ...cur, ...patch }));
+  const stepIds: readonly string[] = STEP_IDS[d.kind];
+  const lastStep = stepIds.length - 1;
+  const stepId: string = stepIds[Math.min(step, lastStep)];
+  const story = d.kind === "story";
 
   const errs = validate(d);
   const show = tried ? errs : {};
@@ -121,10 +191,10 @@ export function AutomationEditor({
   const commit = (status: DraftStatus) => {
     if (status === "active") {
       const e = validate(d);
-      const list = Object.values(e) as [number, string][];
+      const list = Object.values(e) as [string, string][];
       if (list.length) {
         setTried(true);
-        setStep(Math.min(...list.map((x) => x[0])));
+        setStep(Math.min(...list.map((x) => stepIds.indexOf(x[0]))));
         return;
       }
     }
@@ -172,7 +242,7 @@ export function AutomationEditor({
   const pvPost = posts.find((p) => p.id === d.postIds[0]) ?? posts[0];
   const reps = d.replies.filter((r) => r.trim());
   const pvReply = reps.length ? reps[ri % reps.length] : "…";
-  const errorList = (Object.values(errs) as [number, string][]).map(([st, msg]) => ({ st, msg }));
+  const errorList = (Object.values(errs) as [string, string][]).map(([st, msg]) => ({ st, msg }));
 
   const previewProps = {
     d,
@@ -223,7 +293,7 @@ export function AutomationEditor({
           </Link>
           <div className="flex flex-wrap items-center gap-2.5">
             <h1 className="m-0 text-[clamp(26px,4vw,36px)] leading-[1.2] font-bold tracking-[-0.025em]">
-              {d.id ? d.name || "Automação sem nome" : "Nova automação"}
+              {d.id ? d.name || "Automação sem nome" : story ? "Nova automação de story" : "Nova automação"}
             </h1>
             <span
               className="flex h-[26px] items-center gap-1.5 rounded-full px-2.5 text-xs font-semibold"
@@ -275,7 +345,7 @@ export function AutomationEditor({
               <button
                 key={e.msg}
                 type="button"
-                onClick={() => setStep(e.st)}
+                onClick={() => setStep(Math.max(0, stepIds.indexOf(e.st)))}
                 className="h-8 cursor-pointer rounded-full border border-[#EFC2B8] bg-white px-3 text-[13px] font-medium whitespace-nowrap text-danger-ink"
               >
                 {e.msg} →
@@ -286,12 +356,12 @@ export function AutomationEditor({
       ) : null}
 
       <div className="scrollbar-none -mx-0.5 flex gap-1.5 overflow-x-auto pb-1">
-        {STEPS.map((label, i) => {
+        {stepIds.map((id, i) => {
           const a = i === step;
-          const bad = stepErr.has(i);
+          const bad = stepErr.has(id);
           return (
             <button
-              key={label}
+              key={id}
               type="button"
               onClick={() => setStep(i)}
               className="flex h-10 shrink-0 cursor-pointer items-center gap-2 rounded-full border py-0 pr-3.5 pl-1.5 text-sm font-medium whitespace-nowrap"
@@ -310,7 +380,7 @@ export function AutomationEditor({
               >
                 {bad ? "!" : i + 1}
               </span>
-              {label}
+              {STEP_LABELS[id]}
             </button>
           );
         })}
@@ -319,7 +389,7 @@ export function AutomationEditor({
       <div className="flex items-start gap-7">
         <div className="flex min-w-0 flex-1 flex-col gap-4">
           <div className="flex flex-col gap-[22px] rounded-[22px] border border-line bg-white p-[clamp(18px,3vw,28px)]">
-            {step === 0 ? (
+            {stepId === "name" ? (
               <div className="animate-up-fast flex flex-col gap-[22px]">
                 <StepHeader
                   title="Dê um nome pra essa automação"
@@ -340,13 +410,39 @@ export function AutomationEditor({
               </div>
             ) : null}
 
-            {step === 1 ? (
+            {stepId === "words" ? (
               <div className="animate-up-fast flex flex-col gap-[22px]">
                 <StepHeader
-                  title="Qual palavra a pessoa comenta?"
-                  help="Pode ter mais de uma. Maiúsculas e minúsculas não importam."
+                  title={story ? "E essa resposta contém" : "Qual palavra a pessoa comenta?"}
+                  help={
+                    story
+                      ? "Escolha se qualquer resposta dispara, ou só palavras específicas."
+                      : "Pode ter mais de uma. Maiúsculas e minúsculas não importam."
+                  }
                 />
-                <div className="flex flex-col gap-2.5">
+                {story ? (
+                  <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,240px),1fr))] gap-2.5">
+                    <RadioCard
+                      selected={!d.anyWords}
+                      onPick={() => up({ anyWords: false })}
+                      label="Palavras ou reações específicas"
+                    >
+                      <span className="text-sm leading-normal text-ink-2">
+                        Só responde quando a pessoa escrever uma das palavras (ou emojis) que você escolher.
+                      </span>
+                    </RadioCard>
+                    <RadioCard
+                      selected={d.anyWords}
+                      onPick={() => up({ anyWords: true })}
+                      label="Qualquer palavra ou reação"
+                    >
+                      <span className="text-sm leading-normal text-ink-2">
+                        Responde a toda resposta e reação nos seus stories.
+                      </span>
+                    </RadioCard>
+                  </div>
+                ) : null}
+                <div className={`flex flex-col gap-2.5 ${story && d.anyWords ? "hidden" : ""}`}>
                   <div
                     className="flex min-h-14 flex-wrap items-center gap-2 rounded-[13px] border-[1.5px] bg-white p-2"
                     style={{ borderColor: borderOf("keywords") }}
@@ -398,8 +494,10 @@ export function AutomationEditor({
                     <span className="text-[13px] font-medium text-danger">{er("keywords")}</span>
                   ) : null}
                 </div>
-                <div className="flex flex-col gap-2.5">
-                  <span className="text-[15px] font-semibold">Como comparar com o comentário</span>
+                <div className={`flex flex-col gap-2.5 ${story && d.anyWords ? "hidden" : ""}`}>
+                  <span className="text-[15px] font-semibold">
+                    {story ? "Como comparar com a resposta" : "Como comparar com o comentário"}
+                  </span>
                   <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,240px),1fr))] gap-2.5">
                     <RadioCard selected={d.match === "exact"} onPick={() => up({ match: "exact" })} label="Palavra exata">
                       <span className="text-sm leading-normal text-ink-2">
@@ -432,7 +530,7 @@ export function AutomationEditor({
               </div>
             ) : null}
 
-            {step === 2 ? (
+            {stepId === "posts" ? (
               <div className="animate-up-fast flex flex-col gap-[22px]">
                 <StepHeader title="Em quais posts?" help="Onde o Manochat deve ficar de olho nos comentários." />
                 <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,180px),1fr))] gap-2.5">
@@ -504,7 +602,7 @@ export function AutomationEditor({
               </div>
             ) : null}
 
-            {step === 3 ? (
+            {stepId === "reply" ? (
               <div className="animate-up-fast flex flex-col gap-[22px]">
                 <div className="flex items-start gap-4">
                   <div className="flex-1">
@@ -568,7 +666,7 @@ export function AutomationEditor({
               </div>
             ) : null}
 
-            {step === 4 ? (
+            {stepId === "messages" ? (
               <div className="animate-up-fast flex flex-col gap-[22px]">
                 <StepHeader
                   title="O que vai na DM"
@@ -638,7 +736,7 @@ export function AutomationEditor({
               </div>
             ) : null}
 
-            {step === 5 ? (
+            {stepId === "link" ? (
               <div className="animate-up-fast flex flex-col gap-[22px]">
                 <StepHeader title="Link e regras" help="Pra onde a pessoa vai e quem pode receber." />
                 <label className="flex flex-col gap-2 text-sm font-medium">
@@ -709,6 +807,245 @@ export function AutomationEditor({
                 ) : null}
               </div>
             ) : null}
+
+            {stepId === "story" ? (
+              <div className="animate-up-fast flex flex-col gap-[22px]">
+                <StepHeader
+                  title="Quando alguém responder"
+                  help="Escolha qual story dispara essa automação."
+                />
+                <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,220px),1fr))] gap-2.5">
+                  <RadioCard selected={d.target === "all"} onPick={() => up({ target: "all" })} label="Qualquer story">
+                    <span className="text-[13px] leading-[1.45] text-ink-2">
+                      Vale para todos os seus stories, agora e nos próximos.
+                    </span>
+                  </RadioCard>
+                  <RadioCard
+                    selected={d.target === "specific"}
+                    onPick={() => up({ target: "specific" })}
+                    label="Um story específico"
+                  >
+                    <span className="text-[13px] leading-[1.45] text-ink-2">
+                      Você escolhe entre os stories que estão no ar agora.
+                    </span>
+                  </RadioCard>
+                </div>
+                {d.target === "specific" ? (
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="text-[15px] font-semibold">Stories no ar agora</span>
+                      <span
+                        className="text-[13px] font-medium"
+                        style={{ color: d.postIds.length ? "var(--color-success)" : "var(--color-muted)" }}
+                      >
+                        {d.postIds.length
+                          ? `${d.postIds.length} selecionado${d.postIds.length > 1 ? "s" : ""}`
+                          : "Nenhum selecionado"}
+                      </span>
+                    </div>
+                    {posts.length === 0 ? (
+                      <div className="rounded-[14px] bg-bg px-4 py-6 text-center text-sm leading-normal text-muted">
+                        Você não tem stories no ar agora. Stories ficam disponíveis por 24h — publique um e
+                        volte aqui, ou escolha &quot;Qualquer story&quot;.
+                      </div>
+                    ) : (
+                      <PickGrid
+                        items={posts}
+                        selected={d.postIds}
+                        onToggle={(id) =>
+                          up({
+                            postIds: d.postIds.includes(id)
+                              ? d.postIds.filter((x) => x !== id)
+                              : [...d.postIds, id],
+                          })
+                        }
+                      />
+                    )}
+                    {er("postIds") ? (
+                      <span className="text-[13px] font-medium text-danger">{er("postIds")}</span>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            {stepId === "message" ? (
+              <div className="animate-up-fast flex flex-col gap-[22px]">
+                <StepHeader
+                  title="A DM com o link será enviada"
+                  help={
+                    <>
+                      Use <strong className="text-accent-ink">{"{link}"}</strong> onde o link deve aparecer.
+                    </>
+                  }
+                />
+                <div className="flex flex-col gap-2.5 rounded-2xl border border-line bg-white p-4">
+                  <textarea
+                    value={d.dmFollower}
+                    onChange={(e) => up({ dmFollower: e.target.value })}
+                    rows={4}
+                    maxLength={1000}
+                    placeholder="Escreva uma mensagem…"
+                    className="resize-y rounded-xl border-[1.5px] bg-white px-3.5 py-3 text-[15px] leading-normal text-ink outline-accent"
+                    style={{ borderColor: borderOf("dmFollower") }}
+                  />
+                  <EmojiRow
+                    onPick={(e) => up({ dmFollower: d.dmFollower + e })}
+                    extra={
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => linkInsert("dmFollower")}
+                          className="ml-1 h-[30px] cursor-pointer rounded-lg border border-accent-line bg-accent-soft px-2.5 text-xs font-semibold text-accent-ink-2"
+                        >
+                          + {"{link}"}
+                        </button>
+                        <span className="ml-auto text-xs text-muted">{d.dmFollower.length}/1000</span>
+                      </>
+                    }
+                  />
+                  {er("dmFollower") ? (
+                    <span className="text-[13px] font-medium text-danger">{er("dmFollower")}</span>
+                  ) : null}
+                </div>
+                <label className="flex flex-col gap-2 text-sm font-medium">
+                  URL do link
+                  <input
+                    value={d.url}
+                    onChange={(e) => up({ url: e.target.value })}
+                    type="url"
+                    inputMode="url"
+                    placeholder="https://seusite.com.br/pagina"
+                    className={`${inputBase} h-[50px] px-3.5 text-base font-normal`}
+                    style={{ borderColor: borderOf("url") }}
+                  />
+                  {er("url") ? <span className="text-[13px] font-medium text-danger">{er("url")}</span> : null}
+                </label>
+                <ToggleRow
+                  title="Mostrar o link como botão"
+                  help="Além do texto, aparece um botão clicável abaixo da mensagem."
+                  checked={d.linkButton}
+                  onChange={() => up({ linkButton: !d.linkButton })}
+                >
+                  <label className="flex flex-col gap-1.5 text-sm font-medium">
+                    Texto do botão de link
+                    <input
+                      value={d.linkLabel}
+                      onChange={(e) => up({ linkLabel: e.target.value })}
+                      maxLength={20}
+                      placeholder="Abrir link"
+                      className="h-11 max-w-[280px] rounded-[11px] border-[1.5px] border-line bg-white px-3.5 text-[15px] font-semibold text-ink outline-accent"
+                    />
+                  </label>
+                </ToggleRow>
+              </div>
+            ) : null}
+
+            {stepId === "extras" ? (
+              <div className="animate-up-fast flex flex-col gap-[22px]">
+                <StepHeader
+                  title="Outros recursos para automatizar"
+                  help="Tudo opcional. Ligue só o que fizer sentido pra você."
+                />
+                <ToggleRow
+                  title="Reagir com ♥ à resposta"
+                  help="Quando alguém responder ao story, o Manochat curte a mensagem dela."
+                  checked={d.reactHeart}
+                  onChange={() => up({ reactHeart: !d.reactHeart })}
+                />
+                <ToggleRow
+                  title="Pedir para seguir antes de enviar o link"
+                  help="Quem não segue recebe um pedido pra seguir e um botão pra tentar de novo."
+                  checked={d.requireFollow}
+                  onChange={() => up({ requireFollow: !d.requireFollow })}
+                >
+                  <textarea
+                    value={d.dmNonFollower}
+                    onChange={(e) => up({ dmNonFollower: e.target.value })}
+                    rows={3}
+                    maxLength={1000}
+                    className="resize-y rounded-xl border-[1.5px] bg-white px-3.5 py-3 text-[15px] leading-normal text-ink outline-accent"
+                    style={{ borderColor: borderOf("dmNonFollower") }}
+                  />
+                  {er("dmNonFollower") ? (
+                    <span className="text-[13px] font-medium text-danger">{er("dmNonFollower")}</span>
+                  ) : null}
+                  <label className="flex flex-col gap-1.5 text-sm font-medium">
+                    Texto do botão
+                    <input
+                      value={d.btnLabel}
+                      onChange={(e) => up({ btnLabel: e.target.value })}
+                      maxLength={20}
+                      placeholder="Já sigo ✅"
+                      className="h-11 max-w-[280px] rounded-[11px] border-[1.5px] bg-white px-3.5 text-[15px] font-semibold text-ink outline-accent"
+                      style={{ borderColor: borderOf("btnLabel") }}
+                    />
+                  </label>
+                </ToggleRow>
+                <ToggleRow
+                  title="Pedir e-mail"
+                  help="Depois do link, o Manochat pergunta o e-mail e guarda na aba Leads."
+                  checked={d.collectEmail}
+                  onChange={() => up({ collectEmail: !d.collectEmail })}
+                >
+                  <label className="flex flex-col gap-1.5 text-sm font-medium">
+                    Pergunta
+                    <input
+                      value={d.emailPrompt}
+                      onChange={(e) => up({ emailPrompt: e.target.value })}
+                      maxLength={300}
+                      className="h-11 rounded-[11px] border-[1.5px] border-line bg-white px-3.5 text-[15px] font-normal text-ink outline-accent"
+                    />
+                  </label>
+                </ToggleRow>
+                <ToggleRow
+                  title="Pedir WhatsApp"
+                  help="Pergunta o número (com DDD) e guarda na aba Leads."
+                  checked={d.collectPhone}
+                  onChange={() => up({ collectPhone: !d.collectPhone })}
+                >
+                  <label className="flex flex-col gap-1.5 text-sm font-medium">
+                    Pergunta
+                    <input
+                      value={d.phonePrompt}
+                      onChange={(e) => up({ phonePrompt: e.target.value })}
+                      maxLength={300}
+                      className="h-11 rounded-[11px] border-[1.5px] border-line bg-white px-3.5 text-[15px] font-normal text-ink outline-accent"
+                    />
+                  </label>
+                </ToggleRow>
+                {d.collectEmail || d.collectPhone ? (
+                  <label className="flex flex-col gap-1.5 text-sm font-medium">
+                    Mensagem de agradecimento
+                    <input
+                      value={d.thanksText}
+                      onChange={(e) => up({ thanksText: e.target.value })}
+                      maxLength={300}
+                      className="h-11 rounded-[11px] border-[1.5px] border-line bg-white px-3.5 text-[15px] font-normal text-ink outline-accent"
+                    />
+                    <span className="text-xs font-normal text-muted">Enviada depois que a pessoa responder tudo.</span>
+                  </label>
+                ) : null}
+                <div className="flex items-center gap-3 rounded-2xl border border-dashed border-line-dashed p-4">
+                  <div className="flex flex-1 flex-col gap-1">
+                    <strong className="text-base font-semibold text-muted">Acompanhamento para fortalecer o engajamento</strong>
+                    <span className="text-sm leading-normal text-muted">Uma mensagem de lembrete depois de um tempo.</span>
+                  </div>
+                  <span className="h-6 rounded-full bg-fill px-2.5 text-xs leading-6 font-semibold text-muted">Em breve</span>
+                </div>
+                {d.id ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirm("Excluir esta automação? Não dá pra desfazer.")) void deleteAutomation(d.id!);
+                    }}
+                    className="h-10 cursor-pointer self-start border-none bg-transparent px-0 text-sm font-medium text-danger underline underline-offset-[3px]"
+                  >
+                    Excluir automação
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
           </div>
 
           <div className="flex justify-between gap-2.5">
@@ -721,13 +1058,13 @@ export function AutomationEditor({
             >
               ← Voltar
             </button>
-            {step < 5 ? (
+            {step < lastStep ? (
               <button
                 type="button"
-                onClick={() => goStep(Math.min(5, step + 1))}
+                onClick={() => goStep(Math.min(lastStep, step + 1))}
                 className="h-[46px] cursor-pointer rounded-xl border-none bg-ink px-[18px] text-[15px] font-semibold whitespace-nowrap text-white"
               >
-                Próximo: {STEPS[step + 1]} →
+                Próximo: {STEP_LABELS[stepIds[step + 1]]} →
               </button>
             ) : (
               <button
