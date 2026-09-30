@@ -136,6 +136,7 @@ At login the app asks Instagram for exactly three scopes (see
 - `instagram_business_basic` — profile and media
 - `instagram_business_manage_comments` — read comments, post replies
 - `instagram_business_manage_messages` — send the private-reply DM
+- `instagram_business_manage_insights` — per-post reach/views for the dashboard rankings
 
 In Development Mode with your own tester account these are granted on the
 consent screen with no review. You only request **Advanced Access** for them

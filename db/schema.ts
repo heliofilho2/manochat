@@ -29,6 +29,9 @@ export const account = pgTable("account", {
   tokenExpiresAt: timestamp("token_expires_at", { withTimezone: true }).notNull(),
 
   webhookSubscribed: boolean("webhook_subscribed").notNull().default(false),
+  /** Cached for the public link-in-bio page; refreshed lazily every few hours. */
+  followersCount: integer("followers_count"),
+  followersSyncedAt: timestamp("followers_synced_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -292,4 +295,21 @@ export const message = pgTable(
     sentAt: timestamp("sent_at", { withTimezone: true }),
   },
   (t) => [index("message_conversation_time_idx").on(t.conversationId, t.sentAt)],
+);
+
+/* ────────────────────────────────────────────────────────────────────────
+ * Link-in-bio click. `linkId` is "a-<automationId>" or "p-<mediaId>".
+ * Joined with comment_event (DMs sent) this closes the funnel.
+ * ──────────────────────────────────────────────────────────────────────── */
+export const linkClick = pgTable(
+  "link_click",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => account.id, { onDelete: "cascade" }),
+    linkId: text("link_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("link_click_account_time_idx").on(t.accountId, t.createdAt)],
 );

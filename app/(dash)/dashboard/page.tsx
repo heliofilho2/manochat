@@ -1,10 +1,10 @@
 import { redirect } from "next/navigation";
 import { and, eq, sql } from "drizzle-orm";
-import { commentEvent, contact, contactTag, db, tag } from "@/db";
-import { getAccountById } from "@/lib/account";
+import { commentEvent, contact, contactTag, db, linkClick, tag } from "@/db";
+import { accessTokenFor, getAccountById } from "@/lib/account";
 import { getSession } from "@/lib/session";
-import { fetchMediaMetrics, windsorConfigured } from "@/lib/windsor/client";
-import { computeInsights, type Bucket } from "@/lib/windsor/insights";
+import { fetchMediaMetrics } from "@/lib/insights/fetch";
+import { computeInsights, type Bucket } from "@/lib/insights/insights";
 
 export const dynamic = "force-dynamic";
 
@@ -46,7 +46,7 @@ export default async function DashboardPage() {
   if (!session) redirect("/login");
   const accountId = session.accountId;
 
-  const [[totals], tagRows, convRows] = await Promise.all([
+  const [[totals], tagRows, convRows, [clicks]] = await Promise.all([
     db
       .select({
         contacts: sql<number>`count(*)::int`,
@@ -69,29 +69,27 @@ export default async function DashboardPage() {
       .from(commentEvent)
       .where(and(eq(commentEvent.accountId, accountId), eq(commentEvent.dmStatus, "sent")))
       .groupBy(commentEvent.mediaId),
+    db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(linkClick)
+      .where(eq(linkClick.accountId, accountId)),
   ]);
 
   const conversions = new Map<string, number>();
   for (const r of convRows) if (r.mediaId) conversions.set(r.mediaId, r.n);
 
-  /*
-   * Windsor is connected to the owner's Instagram only. Showing its rows to
-   * any other logged-in account would leak the owner's metrics, so the block
-   * is limited to the account whose IG id is WINDSOR_IG_USER_ID.
-   */
+  // Insights come from the account's own token, so every tenant sees only itself.
   const acct = await getAccountById(accountId);
-  const windsorEnabled =
-    windsorConfigured() &&
-    !!acct &&
-    acct.igUserId === process.env.WINDSOR_IG_USER_ID;
-
   let insights = null;
-  let windsorError: string | null = null;
-  if (windsorEnabled) {
+  let insightsError: string | null = null;
+  if (acct) {
     try {
-      insights = computeInsights(await fetchMediaMetrics(90), conversions);
+      insights = computeInsights(
+        await fetchMediaMetrics(accountId, accessTokenFor(acct), 90),
+        conversions,
+      );
     } catch (e) {
-      windsorError = e instanceof Error ? e.message : String(e);
+      insightsError = e instanceof Error ? e.message : String(e);
     }
   }
 
@@ -103,16 +101,17 @@ export default async function DashboardPage() {
         <h1 className="text-lg font-semibold tracking-tight">Dashboard</h1>
         <p className="mt-0.5 text-sm text-muted">
           Contatos e conversão (DMs enviadas por comentário), cruzados com as
-          métricas do Instagram via Windsor.ai.
+          métricas do próprio Instagram.
         </p>
       </div>
 
-      <section className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+      <section className="grid grid-cols-2 gap-3 sm:grid-cols-6">
         <Stat label="Contatos" value={totals?.contacts ?? 0} />
         <Stat label="Seguidores" value={totals?.followers ?? 0} />
         <Stat label="Janela 24h aberta" value={totals?.inWindow ?? 0} />
         <Stat label="Opt-in recorrente" value={totals?.optedIn ?? 0} />
         <Stat label="DMs enviadas" value={totalConversions} />
+        <Stat label="Cliques no bio link" value={clicks?.n ?? 0} />
       </section>
 
       <section>
@@ -135,13 +134,11 @@ export default async function DashboardPage() {
 
       <section>
         <h2 className="text-sm font-medium">O que mais converte (últimos 90 dias)</h2>
-        {!windsorEnabled ? (
-          <p className="mt-3 rounded-xl border border-dashed border-line p-6 text-sm text-muted">
-            Insights de melhor horário, formato e tema: em breve para a sua conta.
-          </p>
-        ) : windsorError ? (
+        {insightsError ? (
           <p className="mt-3 rounded-xl bg-warn-soft p-4 text-sm text-warn">
-            Falha ao consultar a Windsor: {windsorError}
+            Não foi possível ler as métricas do Instagram: {insightsError}. Se a
+            mensagem citar permissão, saia e entre de novo para autorizar o acesso
+            às métricas.
           </p>
         ) : insights ? (
           <div className="mt-3 grid gap-3 sm:grid-cols-2">

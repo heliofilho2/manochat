@@ -15,6 +15,13 @@
       "when": 1790726203375,
       "tag": "0001_loud_thor",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790730853469,
+      "tag": "0002_bio_link",
+      "breakpoints": true
     }
   ]
 }

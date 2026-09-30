@@ -18,6 +18,7 @@ sem o qual o app só funciona com contas de teste (README, passo 4d/4e).
 | `instagram_business_basic` | Read the connected professional account's profile and media list so the user can pick which posts an automation applies to. |
 | `instagram_business_manage_comments` | Read comments on the user's posts to detect the configured keyword, and post a public reply. |
 | `instagram_business_manage_messages` | Send a private reply to a commenter, and send the follow-up message (link) after the user taps the button, within the 24h window. |
+| `instagram_business_manage_insights` | Read reach and views of the user's own posts to rank best posting time, format and theme on their dashboard. Data is shown only to the account owner. |
 
 Webhooks usados: `comments`, `messages`, `messaging_postbacks`.
 

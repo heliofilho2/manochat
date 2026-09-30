@@ -74,6 +74,50 @@ export function getMedia(token: string, limit = 50) {
   });
 }
 
+/** Follower count of the connected account (instagram_business_basic). */
+export async function getFollowersCount(token: string): Promise<number | null> {
+  const res = await call<{ followers_count?: number }>("/me", {
+    params: { fields: "followers_count", access_token: token },
+  });
+  return res.followers_count ?? null;
+}
+
+/** Media with the fields the insights ranking needs, newest first. */
+export function getMediaForInsights(token: string, limit = 50) {
+  return call<{
+    data: {
+      id: string;
+      caption?: string;
+      media_type?: string;
+      media_product_type?: string;
+      timestamp?: string;
+    }[];
+  }>("/me/media", {
+    params: {
+      fields: "id,caption,media_type,media_product_type,timestamp",
+      limit: String(limit),
+      access_token: token,
+    },
+  });
+}
+
+/** Reach and views of one post. Needs `instagram_business_manage_insights`. */
+export async function getMediaReach(
+  token: string,
+  mediaId: string,
+): Promise<{ reach: number; views: number }> {
+  const res = await call<{
+    data: { name: string; values?: { value: number }[]; total_value?: { value: number } }[];
+  }>(`/${mediaId}/insights`, {
+    params: { metric: "reach,views", access_token: token },
+  });
+  const pick = (name: string) => {
+    const m = res.data.find((d) => d.name === name);
+    return m?.values?.[0]?.value ?? m?.total_value?.value ?? 0;
+  };
+  return { reach: pick("reach"), views: pick("views") };
+}
+
 /**
  * Subscribes this app to the account's `comments` and `messages` webhooks.
  *

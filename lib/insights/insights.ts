@@ -1,17 +1,17 @@
 /**
- * Pure aggregation over Windsor media rows. No network, no `server-only`,
+ * Pure aggregation over Instagram media rows. No network, no `server-only`,
  * so it is unit-testable like the matcher.
  */
 
-export interface WindsorMediaRow {
-  media_id: string;
-  media_type?: string | null;
-  media_product_type?: string | null;
-  media_caption?: string | null;
+export interface MediaRow {
+  mediaId: string;
+  mediaType?: string | null;
+  productType?: string | null;
+  caption?: string | null;
   timestamp?: string | null;
-  media_reach?: number | null;
-  media_views?: number | null;
-  media_engagement?: number | null;
+  reach?: number | null;
+  views?: number | null;
+  engagement?: number | null;
 }
 
 export interface Bucket {
@@ -55,9 +55,9 @@ export function themeOf(caption: string | null | undefined): string | null {
   return m ? `#${m[1].toLowerCase()}` : null;
 }
 
-export function formatOf(row: WindsorMediaRow): string {
-  if (row.media_product_type === "REELS") return "REEL";
-  return row.media_type ?? "DESCONHECIDO";
+export function formatOf(row: MediaRow): string {
+  if (row.productType === "REELS") return "REEL";
+  return row.mediaType ?? "DESCONHECIDO";
 }
 
 function rank(map: Map<string, Omit<Bucket, "rate" | "key">>, minPosts = 1): Bucket[] {
@@ -68,12 +68,12 @@ function rank(map: Map<string, Omit<Bucket, "rate" | "key">>, minPosts = 1): Buc
 }
 
 /**
- * Joins Windsor's post metrics with our own conversion counts
+ * Joins Instagram post metrics with our own conversion counts
  * (`comment_event` rows with a sent DM, keyed by media id) and ranks
  * hour / weekday / format / theme by conversions per reach.
  */
 export function computeInsights(
-  rows: WindsorMediaRow[],
+  rows: MediaRow[],
   conversionsByMedia: Map<string, number>,
 ): Insights {
   const hour = new Map<string, Omit<Bucket, "rate" | "key">>();
@@ -95,15 +95,15 @@ export function computeInsights(
   };
 
   for (const row of rows) {
-    const reach = Number(row.media_reach ?? 0);
-    const conv = conversionsByMedia.get(row.media_id) ?? 0;
+    const reach = Number(row.reach ?? 0);
+    const conv = conversionsByMedia.get(row.mediaId) ?? 0;
     const lp = row.timestamp ? localParts(row.timestamp) : null;
     if (lp) {
       add(hour, `${String(lp.hour).padStart(2, "0")}h`, reach, conv);
       add(weekday, WEEKDAYS[lp.weekday], reach, conv);
     }
     add(format, formatOf(row), reach, conv);
-    const t = themeOf(row.media_caption);
+    const t = themeOf(row.caption);
     if (t) add(theme, t, reach, conv);
   }
 
