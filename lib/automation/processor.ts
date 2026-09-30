@@ -173,7 +173,12 @@ async function handlePostback(acct: Account, event: MessagingEvent) {
   if (claimed.length === 0) return;
 
   try {
-    await unlock(acct, automationId, igsid, at);
+    const outcome = await unlock(acct, automationId, igsid, at);
+    // Keep the decision visible in the inbox (the outbound DM itself has no text stored).
+    await db
+      .update(message)
+      .set({ attachmentSummary: OUTCOME_LABEL[outcome] })
+      .where(eq(message.id, `pb:${postback.mid}`));
   } catch (error) {
     // Release the claim so the sweeper's retry is not mistaken for a duplicate.
     await db.delete(message).where(eq(message.id, `pb:${postback.mid}`));
@@ -181,7 +186,30 @@ async function handlePostback(acct: Account, event: MessagingEvent) {
   }
 }
 
-async function unlock(acct: Account, automationId: string, igsid: string, at: Date) {
+export type UnlockOutcome = "link_sent" | "asked_follow" | "not_follower" | "no_rule";
+
+const OUTCOME_LABEL: Record<UnlockOutcome, string> = {
+  link_sent: "→ link enviado",
+  asked_follow: "→ ainda não segue: pediu para seguir",
+  not_follower: "→ ainda não segue",
+  no_rule: "→ automação não encontrada",
+};
+
+/** Meta's follow flag can lag a few seconds behind a fresh follow. */
+const FOLLOW_RECHECK_DELAY_MS = 4000;
+
+/**
+ * Releases the link after a button tap (or a manual resend).
+ * `linkOnly` never sends the "follow me first" prompt: used when resending to
+ * people who already tapped, so a non-follower is skipped instead of nagged.
+ */
+export async function unlock(
+  acct: Account,
+  automationId: string,
+  igsid: string,
+  at: Date,
+  opts: { linkOnly?: boolean; recheckDelayMs?: number } = {},
+): Promise<UnlockOutcome> {
   // A tap is an inbound interaction: it (re)opens the 24h window.
   const contactId = await touchContact(acct.id, igsid, null, at);
 
@@ -190,13 +218,18 @@ async function unlock(acct: Account, automationId: string, igsid: string, at: Da
     .from(automation)
     .where(and(eq(automation.id, automationId), eq(automation.accountId, acct.id)))
     .limit(1);
-  if (!rule) return;
+  if (!rule) return "no_rule";
 
   const token = accessTokenFor(acct);
   // Only ask Meta about following when this automation actually gates on it.
   let isFollower = true;
   if (rule.requireFollow) {
     isFollower = await getUserFollowsBusiness(token, igsid);
+    if (!isFollower) {
+      // The person usually taps right after following; give Meta a moment and ask once more.
+      await new Promise((r) => setTimeout(r, opts.recheckDelayMs ?? FOLLOW_RECHECK_DELAY_MS));
+      isFollower = await getUserFollowsBusiness(token, igsid);
+    }
     await db
       .update(contact)
       .set({ isFollower, followerCheckedAt: new Date() })
@@ -204,6 +237,7 @@ async function unlock(acct: Account, automationId: string, igsid: string, at: Da
   }
 
   const decision = decideUnlock(isFollower, rule.requireFollow);
+  if (decision === "ask_follow" && opts.linkOnly) return "not_follower";
   if (decision === "send_link" && rule.requireFollow) await addTag(acct.id, contactId, "follower");
 
   // Window guard for every non-private-reply send.
@@ -225,6 +259,7 @@ async function unlock(acct: Account, automationId: string, igsid: string, at: Da
   if (decision === "send_link" && rule.kind === "story") {
     await afterLink(acct, rule, igsid, token);
   }
+  return decision === "send_link" ? "link_sent" : "asked_follow";
 }
 
 /* ────────────────────────────────────────────────────────────────────────

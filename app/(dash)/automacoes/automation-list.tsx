@@ -9,6 +9,7 @@ import { useToast } from "@/components/toast";
 import { IconBolt } from "@/components/icons";
 import type { PostView } from "@/lib/posts-view";
 import { setAutomationStatus } from "../actions";
+import { resendMissedLinks } from "./resend";
 
 export interface ListItem {
   id: string;
@@ -49,6 +50,7 @@ export function AutomationList({ items: initial }: { items: ListItem[] }) {
   const [items, setItems] = useState(initial);
   const [filter, setFilter] = useState<Filter>("all");
   const [, start] = useTransition();
+  const [resending, setResending] = useState<string | null>(null);
 
   const count = (k: Filter) => (k === "all" ? items.length : items.filter((a) => a.status === k).length);
   const shown = items.filter((a) => filter === "all" || a.status === filter);
@@ -65,6 +67,26 @@ export function AutomationList({ items: initial }: { items: ListItem[] }) {
         return;
       }
       toast(next === "active" ? `"${a.name}" está ativa` : `"${a.name}" foi pausada`);
+      router.refresh();
+    });
+  };
+
+  const resend = (a: ListItem) => {
+    if (!window.confirm(`Reenviar o link de "${a.name}" para quem tocou no botão nas últimas 24h e não recebeu?`)) return;
+    setResending(a.id);
+    start(async () => {
+      const r = await resendMissedLinks(a.id);
+      setResending(null);
+      if (!r.ok) {
+        toast(r.error);
+        return;
+      }
+      const parts = [`${r.sent} enviado${r.sent === 1 ? "" : "s"}`];
+      if (r.notFollower) parts.push(`${r.notFollower} ainda não segue${r.notFollower === 1 ? "" : "m"}`);
+      if (r.failed) parts.push(`${r.failed} com erro`);
+      if (r.expired) parts.push(`${r.expired} fora da janela de 24h`);
+      if (r.remaining) parts.push(`${r.remaining} restantes: clique de novo`);
+      toast(parts.join(" · "));
       router.refresh();
     });
   };
@@ -206,6 +228,20 @@ export function AutomationList({ items: initial }: { items: ListItem[] }) {
                     </span>
                     <span className="text-xs whitespace-nowrap text-muted">DMs enviadas</span>
                   </div>
+                  {a.status !== "draft" && !isStory ? (
+                    <button
+                      type="button"
+                      disabled={resending === a.id}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        resend(a);
+                      }}
+                      title="Confere quem tocou no botão nas últimas 24h e não recebeu o link, e envia para quem já segue"
+                      className="h-10 cursor-pointer rounded-[11px] border border-line bg-white px-3 text-[13px] font-semibold whitespace-nowrap disabled:opacity-60"
+                    >
+                      {resending === a.id ? "Reenviando…" : "Reenviar link"}
+                    </button>
+                  ) : null}
                   {a.status === "draft" ? (
                     <Link
                       href={`/automacoes/${a.id}`}

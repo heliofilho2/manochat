@@ -49,6 +49,7 @@ export const WALLPAPERS = ["solid", "gradient", "blur", "pattern", "image"] as c
 export const PATTERNS = ["dots", "grid", "lines"] as const;
 export const BUTTON_STYLES = ["fill", "outline", "soft", "glass", "hard"] as const;
 export const BUTTON_LAYOUTS = ["list", "grid"] as const;
+export const FRAMES = ["none", "card", "outline"] as const;
 export const FONTS = ["jakarta", "serif", "mono", "rounded", "display", "elegant"] as const;
 export const SOCIAL_TYPES = [
   "instagram",
@@ -101,6 +102,10 @@ export interface BioStyle {
     text: string | null;
     lift: boolean;
   };
+  /** A rectangular panel holding the content, distinct from the wallpaper. */
+  frame: (typeof FRAMES)[number];
+  /** null = the theme's card colour */
+  frameColor: string | null;
   font: (typeof FONTS)[number];
   textColor: string | null;
   socials: { type: SocialType; url: string }[];
@@ -112,6 +117,8 @@ export const DEFAULT_STYLE: BioStyle = {
   title: "",
   wallpaper: { type: "solid", color: null, color2: null, angle: 160, pattern: "dots", image: null },
   button: { style: "fill", layout: "list", color: null, text: null, lift: true },
+  frame: "none",
+  frameColor: null,
   font: "jakarta",
   textColor: null,
   socials: [],

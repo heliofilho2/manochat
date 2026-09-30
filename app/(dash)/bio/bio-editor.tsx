@@ -11,6 +11,7 @@ import {
   BUTTON_STYLES,
   buildItems,
   FONTS,
+  FRAMES,
   HEADER_LAYOUTS,
   PATTERNS,
   PRESET_STYLE,
@@ -59,6 +60,7 @@ const WALLPAPER_LABELS: Record<string, string> = {
   pattern: "Padrão",
   image: "Imagem",
 };
+const FRAME_LABELS: Record<string, string> = { none: "Sem moldura", card: "Painel", outline: "Painel com contorno" };
 const PATTERN_LABELS: Record<string, string> = { dots: "Pontos", grid: "Grade", lines: "Linhas" };
 const BUTTON_LABELS: Record<string, string> = {
   fill: "Preenchido",
@@ -188,7 +190,11 @@ function cropSquare(file: File, size: number, quality: number): Promise<string> 
         const cv = document.createElement("canvas");
         cv.width = cv.height = size;
         const s = Math.min(img.width, img.height);
-        cv.getContext("2d")!.drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, size, size);
+        const out = Math.min(size, s);
+        cv.width = cv.height = out;
+        const ctx = cv.getContext("2d")!;
+        ctx.imageSmoothingQuality = "high";
+        ctx.drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, out, out);
         resolve(cv.toDataURL("image/jpeg", quality));
       };
       img.src = rd.result as string;
@@ -206,13 +212,15 @@ function toWallpaper(file: File): Promise<string> {
       const img = new Image();
       img.onerror = () => reject(new Error("decode"));
       img.onload = () => {
-        const w = Math.min(540, img.width);
+        const w = Math.min(800, img.width);
         const h = Math.round((img.height * w) / img.width);
         const cv = document.createElement("canvas");
         cv.width = w;
         cv.height = h;
-        cv.getContext("2d")!.drawImage(img, 0, 0, w, h);
-        resolve(cv.toDataURL("image/jpeg", 0.7));
+        const ctx = cv.getContext("2d")!;
+        ctx.imageSmoothingQuality = "high";
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(cv.toDataURL("image/jpeg", 0.8));
       };
       img.src = rd.result as string;
     };
@@ -651,7 +659,7 @@ export function BioEditor({
                         const f = e.target.files?.[0];
                         if (!f) return;
                         try {
-                          ch({ photo: await cropSquare(f, 240, 0.82) });
+                          ch({ photo: await cropSquare(f, 560, 0.86) });
                         } catch {
                           toast("Não consegui ler essa imagem. Tente outra.");
                         }
@@ -796,6 +804,27 @@ export function BioEditor({
                 </span>
               </Group>
 
+              <Group title="Moldura" summary={FRAME_LABELS[st.frame]}>
+                <Chips
+                  value={st.frame}
+                  options={FRAMES}
+                  labels={FRAME_LABELS}
+                  onPick={(v) => chStyle({ frame: v })}
+                />
+                <span className="text-sm leading-normal text-muted">
+                  Coloca seus links num painel retangular sobre o fundo, como no Linktree. No celular ele ocupa a
+                  largura toda, com uma pequena margem.
+                </span>
+                {st.frame !== "none" ? (
+                  <ColorField
+                    label="Cor do painel"
+                    value={st.frameColor}
+                    fallback={theme.card}
+                    onChange={(v) => chStyle({ frameColor: v })}
+                  />
+                ) : null}
+              </Group>
+
               <Group title="Fundo" summary={WALLPAPER_LABELS[st.wallpaper.type]}>
                 <Chips
                   value={st.wallpaper.type}
@@ -859,7 +888,7 @@ export function BioEditor({
                           if (!f) return;
                           try {
                             const url = await toWallpaper(f);
-                            if (url.length > 240_000) {
+                            if (url.length > 420_000) {
                               toast("Essa imagem ficou pesada. Tente uma menor ou mais simples.");
                             } else {
                               chWall({ image: url });

@@ -25,6 +25,8 @@ export interface ResolvedStyle {
   muted: string;
   card: string;
   line: string;
+  /** Styles of the content panel, or null when there is no frame. */
+  frame: Css | null;
   accent: string;
   accentFg: string;
   radius: string;
@@ -50,7 +52,11 @@ const FONT_VAR: Record<string, string> = {
 export function resolveStyle(s: BioSettings): ResolvedStyle {
   const t = THEMES[s.theme] ?? THEMES.papel;
   const st = s.style;
-  const text = st.textColor ?? t.ink;
+  const framed = st.frame !== "none";
+  const frameBg = st.frameColor ?? t.card;
+  // Inside a custom-coloured panel the text follows the panel, not the wallpaper.
+  const wallInk = st.textColor ?? t.ink;
+  const text = st.textColor ?? (framed && st.frameColor ? readableOn(st.frameColor) : t.ink);
   const base = st.wallpaper.color ?? t.bg;
 
   let wallpaper: Css = { background: base };
@@ -67,7 +73,7 @@ export function resolveStyle(s: BioSettings): ResolvedStyle {
       overlay = mix(base, 35);
       break;
     case "pattern": {
-      const ink = mix(text, 14);
+      const ink = mix(wallInk, 14);
       const size = "22px 22px";
       wallpaper =
         st.wallpaper.pattern === "grid"
@@ -112,15 +118,18 @@ export function resolveStyle(s: BioSettings): ResolvedStyle {
       button = { background: mix(btnBg, 16), color: text, border: "1.5px solid transparent" };
       break;
     case "glass":
-      button = {
-        background: "rgba(255,255,255,0.16)",
-        color: text,
-        border: "1.5px solid rgba(255,255,255,0.35)",
-        backdropFilter: "blur(12px)",
-      };
+      button = framed
+        ? // white-on-white would vanish inside a light panel
+          { background: mix(text, 8), color: text, border: `1.5px solid ${mix(text, 22)}` }
+        : {
+            background: "rgba(255,255,255,0.16)",
+            color: text,
+            border: "1.5px solid rgba(255,255,255,0.35)",
+            backdropFilter: "blur(12px)",
+          };
       break;
     case "hard": {
-      const face = st.button.color ?? t.card;
+      const face = st.button.color ?? frameBg;
       button = {
         background: face,
         color: st.button.text ?? readableOn(face),
@@ -136,8 +145,17 @@ export function resolveStyle(s: BioSettings): ResolvedStyle {
   return {
     text,
     muted: st.textColor ? mix(text, 65) : t.muted,
-    card: t.card,
+    card: frameBg,
     line: t.line,
+    frame: framed
+      ? ({
+          background: frameBg,
+          borderRadius: 28,
+          ...(st.frame === "outline"
+            ? { border: `2px solid ${text}`, boxShadow: `6px 6px 0 ${text}` }
+            : { border: `1px solid ${mix(text, 10)}`, boxShadow: "0 24px 60px rgba(0,0,0,.18)" }),
+        } as Css)
+      : null,
     accent: t.accent,
     accentFg: t.accentFg,
     radius: SHAPES[s.shape] ?? SHAPES.arredondado,

@@ -137,7 +137,7 @@ export function BioPage({
             </span>
           )}
         </div>
-        <div className="-mt-16 flex flex-col items-center gap-2.5 px-5 text-center">
+        <div className="relative -mt-16 flex flex-col items-center gap-2.5 px-5 text-center">
           {nameBlock("center")}
           {bioText}
           {socialRow}
@@ -156,12 +156,12 @@ export function BioPage({
             <img
               src={photo}
               alt=""
-              className="h-full w-full scale-125 object-cover blur-[2px]"
+              className="h-full w-full object-cover"
               style={{ objectPosition: "center 30%" }}
             />
           ) : null}
         </div>
-        <div className="-mt-12 flex flex-col items-center gap-2.5 px-5 text-center">
+        <div className="relative -mt-12 flex flex-col items-center gap-2.5 px-5 text-center">
           {avatar(96)}
           {nameBlock("center")}
           {bioText}
@@ -203,9 +203,9 @@ export function BioPage({
 
   return (
     <div
-      className="relative overflow-hidden"
+      className={`relative overflow-hidden ${r.frame ? (framed ? "px-3 py-4" : "px-3 py-4 sm:py-10") : ""}`}
       style={{
-        minHeight: framed ? "100%" : "100vh",
+        minHeight: framed ? "100%" : "100dvh",
         color: r.text,
         fontFamily: `${r.fontVar}, system-ui, sans-serif`,
         ...(r.wallpaper as React.CSSProperties),
@@ -224,7 +224,10 @@ export function BioPage({
         <div className="pointer-events-none absolute inset-0" style={{ background: r.overlay }} />
       ) : null}
 
-      <div className="relative mx-auto flex max-w-[480px] flex-col gap-[22px]" style={{ paddingBottom: 28 }}>
+      <div
+        className={`relative mx-auto flex max-w-[480px] flex-col gap-[22px] ${r.frame ? "overflow-hidden" : ""}`}
+        style={{ paddingBottom: 28, ...(r.frame as React.CSSProperties | null) }}
+      >
         {header}
 
         <div
