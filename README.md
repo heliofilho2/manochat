@@ -1,443 +1,428 @@
 # Manochat
 
-Instagram keyword automation: reply to comments containing your keywords and
-automatically DM those people your link. Built to replace the one slice of
-Manychat that actually gets used.
+**Automação de Instagram gratuita e de código aberto para criadores e pequenos negócios.**
+Comentou a palavra ou respondeu o story? O link chega na DM, sozinho. Com checagem de
+quem segue, captura de leads e uma página de links (link na bio) personalizável.
 
-- **Auto-reply to comments** matching keywords, on all posts / specific posts /
-  posts from now on
-- **Auto-DM the commenter** with your link — no prior conversation needed
-- **Inbox** — an activity log of every automation run, plus read-only DM threads
+Usa **apenas as APIs oficiais da Meta** (Login do Instagram + Graph API). Sem senha, sem
+robô, sem scraping. Roda na **Vercel + Neon** e você pode hospedar a sua própria cópia.
 
-Single-tenant (one Instagram account). Instagram only; the provider boundary in
-`lib/instagram/` is where TikTok would slot in later.
+> Veja como ele funciona, com as telas reais: **https://manochat.vercel.app/como-funciona**
 
 ---
 
-## How the DM works
+## Sumário
 
-Meta has a first-class mechanism for this called a **Private Reply**: you POST
-to `/{ig-user-id}/messages` with `recipient: { comment_id }` and Meta delivers a
-DM to the commenter with no existing conversation. Its limits are enforced by
-Meta and shape the whole design:
+- [O que ele faz](#o-que-ele-faz)
+- [Como funciona por dentro](#como-funciona-por-dentro)
+- [Limites da Meta (e como o app lida com eles)](#limites-da-meta-e-como-o-app-lida-com-eles)
+- [Instalação passo a passo](#instalação-passo-a-passo)
+- [Usando](#usando)
+- [Variáveis de ambiente](#variáveis-de-ambiente)
+- [Webhook de leads](#webhook-de-leads)
+- [Solução de problemas](#solução-de-problemas)
+- [Arquitetura](#arquitetura)
+- [Comandos](#comandos)
+- [Custos](#custos)
+- [Segurança e privacidade](#segurança-e-privacidade)
+- [Contribuindo e suporte](#contribuindo-e-suporte)
+- [Créditos](#créditos)
 
-| Rule | How this app handles it |
+---
+
+## O que ele faz
+
+### Automações de comentário
+- Escolha **uma ou mais palavras-chave** (palavra exata ou "contém") e onde valem:
+  **posts específicos**, **todos os posts** ou **só os próximos**.
+- **Resposta pública** no comentário, com variações que se alternam para não parecer spam.
+- **DM com o link** enviada como resposta privada ao comentário (não precisa de conversa anterior).
+- **Seguir antes (opcional):** a primeira DM traz um botão "Já sigo ✅". Ao tocar, o app pergunta
+  à Meta se a pessoa segue de verdade e só então libera o link. Quem ainda não segue recebe um
+  lembrete e pode tentar de novo.
+- Botão de link na DM, texto livre e **pré-visualização da conversa** antes de ativar.
+- **Reenviar link:** botão na lista de automações que reenvia o link a quem tocou no botão nas
+  últimas 24 h e não recebeu (por exemplo, por atraso da Meta ao registrar um novo seguidor).
+
+### Automações de story
+- Quem **responde ao seu story** (qualquer resposta, ou uma palavra específica) recebe o link na DM.
+- Vale para **qualquer story** ou **stories específicos**. Dica: se você impulsiona stories
+  (anúncios), use "qualquer story", porque o anúncio pode chegar com outro id de mídia.
+- **Captura de leads**: pergunta e-mail e/ou WhatsApp, valida, agradece.
+- Reação de coração na resposta (opcional).
+
+### Leads
+- Lista de quem respondeu, com e-mail, WhatsApp, origem e etapa.
+- **Exportar CSV** e **webhook opcional** que envia cada lead novo ao seu site ou CRM
+  ([detalhes](#webhook-de-leads)).
+
+### Link na bio
+- Página pública em `/u/<seu-usuario>` com os seus links, as automações ativas ("Comente
+  PALAVRA…") e os últimos posts.
+- **Personalização:** 10 temas, 4 estilos de cabeçalho, fundos (cor, degradê, foto desfocada,
+  padrão, imagem), 5 estilos de botão, 6 fontes, cores próprias, moldura em painel, redes
+  sociais e títulos de seção.
+- **Cliques contados** por link e redirecionamento com suporte a UTM.
+
+### Painel e caixa de entrada
+- Contatos, janelas de 24 h abertas, DMs enviadas, cliques no link da bio, funil
+  (alcance → DMs → cliques) e ranking do que mais funciona (hora, dia, formato, tema),
+  direto da API de Insights do Instagram.
+- **Caixa de entrada** com o histórico do que foi enviado e recebido, incluindo a decisão de cada
+  toque no botão de seguir ("link enviado", "ainda não segue").
+- **Tags** automáticas nos contatos.
+
+### Multiusuário
+Cada conta que se conecta tem suas automações, contatos, leads e página de bio isolados.
+
+---
+
+## Como funciona por dentro
+
+```
+Comentário / resposta de story / toque de botão
+        │  webhook da Meta (campos: comments, messages, messaging_postbacks)
+        ▼
+POST /api/webhooks/instagram
+        │  valida assinatura → grava o evento bruto → responde 200 na hora
+        ▼  (depois de responder)
+   processa: casa a automação → responde o comentário → envia a DM
+        │
+        ▼
+Cron reprocessa o que ficou pendente ou falhou
+```
+
+O webhook responde **antes** de processar, porque a Meta estrangula e desativa endpoints lentos.
+A durabilidade vem da tabela `webhook_event` e de um cron que reprocessa, e não de uma fila.
+
+**Idempotência:** cada envio é protegido por chave única no banco (`comment_event.comment_id`,
+`story:<mid>` e `pb:<mid>`), então uma entrega repetida do webhook nunca gera DM em duplicidade.
+
+---
+
+## Limites da Meta (e como o app lida com eles)
+
+| Regra da Meta | Como o app trata |
 |---|---|
-| One private reply per comment, ever | `comment_event.comment_id` is UNIQUE — duplicate webhooks cannot double-send |
-| Must be sent within 7 days | Events carry `expires_at`; past it they are marked `dead`, not retried |
-| Account must be Professional | Checked at login by Instagram itself |
-| 2 messaging calls/sec per account | The retry sweeper paces itself at ~550ms |
+| Uma resposta privada por comentário, para sempre | `comment_id` é `UNIQUE` |
+| Resposta privada só até 7 dias depois do comentário | Eventos carregam `expires_at`; depois disso viram `dead` |
+| DMs comuns só dentro de 24 h da última interação | O contato guarda `messaging_window_expires_at` e o envio é bloqueado fora dela |
+| Conta precisa ser Profissional (Criador/Empresa) | Validado no próprio login do Instagram |
+| ~2 chamadas de mensagem por segundo por conta | O cron de reprocessamento anda em ritmo de ~550 ms |
+| App em modo **Desenvolvimento** não recebe webhooks de contas reais | Coloque o app em modo **Live** (Passo 4h) |
+| Só contas de teste usam o app sem App Review | Para abrir a outras pessoas é preciso **Acesso Avançado** (App Review) |
 
 ---
 
-# Setup — start here
+## Instalação passo a passo
 
-This is the full path from a fresh clone to a working automation. Budget about
-an hour; most of it is the Meta dashboard, not the code.
+Reserve cerca de **1 hora**. A maior parte é no painel da Meta, não no código. A ordem importa:
+a Meta exige uma URL HTTPS pública antes de aceitar o webhook, então o app é publicado **antes** de
+terminar a configuração da Meta.
 
-You will need: an Instagram account you control, a Meta (Facebook) account, a
-[Vercel](https://vercel.com) account (the database is provisioned through it,
-via Neon), and Node 20+ with `pnpm`.
+**Você vai precisar de:** uma conta do Instagram que você controla, uma conta Meta/Facebook,
+uma conta na [Vercel](https://vercel.com), Node 20+ e [pnpm](https://pnpm.io).
 
-The order matters. Meta needs a live HTTPS URL before it will accept your
-webhook, so the app gets deployed **before** the Meta config is finished.
+### Passo 1 — Converta o Instagram para conta Profissional
+No app do Instagram: **Configurações → Tipo de conta e ferramentas → Mudar para conta
+profissional** (Criador ou Empresa). Contas pessoais não funcionam com esta API. Se o login der
+um erro vago de permissão, quase sempre é isso.
 
----
-
-## Step 1 — Convert your Instagram account to Professional
-
-In the Instagram mobile app: **Settings → Account type and tools → Switch to
-professional account**. Pick **Business** or **Creator**.
-
-Personal accounts cannot use this API at all. If login later fails with a vague
-permissions error, this is almost always why.
-
----
-
-## Step 2 — Clone and install
-
+### Passo 2 — Clone e instale
 ```bash
-git clone <this-repo> manychat
-cd manychat
+git clone https://github.com/heliofilho2/manochat.git
+cd manochat
 pnpm install
 ```
 
-If you plan to use the GitHub Actions cron (Step 9), push this to your own
-GitHub repo now — the workflow only runs from a repo you control.
+### Passo 3 — Crie o banco (Neon)
+Crie o banco **pela Vercel** (liga tudo automaticamente ao seu projeto):
 
----
-
-## Step 3 — Create the database
-
-Create the Neon database **through Vercel**, not on neon.tech directly — this
-links it to your project automatically and saves a step later in Step 7.
-
-1. Sign in at [vercel.com](https://vercel.com).
-2. **Storage → Create Database → Neon** (Postgres, powered by Neon).
-3. Name it and create it. Vercel provisions the Neon project for you.
-4. Copy the connection string it gives you — the pooled one, which looks like:
+1. Entre em [vercel.com](https://vercel.com) → **Storage → Create Database → Neon**.
+2. Crie e copie a string de conexão **pooled**:
    `postgresql://user:pass@ep-xxx-pooler.region.aws.neon.tech/neondb?sslmode=require`
 
-Keep it handy for Step 5. If you connect the database to your Vercel project
-now, Vercel will also offer to inject `DATABASE_URL` into your project's
-environment variables automatically, which saves you re-entering it in Step 7.
+### Passo 4 — Crie o app na Meta
+Tudo em [developers.facebook.com](https://developers.facebook.com), com a conta Facebook que será dona do app.
 
----
+**4a. Criar o app.** *My Apps → Create App.* Na escolha de casos de uso, aba **All**, selecione
+**Manage messaging and content on Instagram**.
 
-## Step 4 — Create the Meta app (developer side)
+**4b. Login do Instagram.** Em *Use cases → Customize* nesse caso de uso, abra **API setup with
+Instagram login**. É este fluxo que o app usa, **não** o "com login do Facebook". Escolher o errado
+gera tokens que o app não consegue usar.
 
-Everything here happens at
-[developers.facebook.com](https://developers.facebook.com). Log in with the
-Facebook account that will own the app.
+**4c. ID e segredo.** Na mesma tela, em *Generate access tokens* / *Business login settings*:
+- **Instagram app ID** → `INSTAGRAM_APP_ID`
+- **Instagram app secret** (clique em *Show*) → `INSTAGRAM_APP_SECRET`
 
-### 4a. Create the app
+São os do **app do Instagram**, não os de *App settings → Basic*.
 
-1. **My Apps → Create App**.
-2. **App name**: anything (e.g. `comment-to-dm`). **Contact email**: yours.
-3. On the use-case picker, click the **All** tab and choose **Manage
-   messaging and content on Instagram**. This is the use case this app is
-   built around — don't use a generic "Business" or "Other" tile if you see
-   one instead.
-4. Create the app. You land on the app dashboard.
+**4d. Permissões.** O login pede estas quatro:
+- `instagram_business_basic`: perfil e mídia
+- `instagram_business_manage_comments`: ler e responder comentários
+- `instagram_business_manage_messages`: enviar DMs
+- `instagram_business_manage_insights`: alcance e visualizações do painel
 
-### 4b. Set up Instagram Login inside the use case
+Com a sua própria conta de teste elas são concedidas na tela de consentimento, sem revisão.
 
-1. In the left sidebar, open **Use cases**, then click **Customize** on the
-   *Manage messaging and content on Instagram* use case you just added.
-2. Inside it, open **API setup with Instagram login**. This is the flow this
-   app uses — **not** Facebook Login, and **not** the older "API setup with
-   Facebook login". Choosing the Facebook variant produces tokens this app
-   cannot use.
+**4e. Adicione-se como testador.** *App roles → Roles → Add people → Instagram Tester*, coloque o
+seu @ e aceite o convite no Instagram em **Configurações → Apps e sites → Convites de testador**.
 
-### 4c. Get your App ID and App Secret
+**4f. URLs de privacidade e exclusão.** A Meta pede *Privacy Policy URL* e *Data Deletion URL*.
+O app já serve as duas páginas prontas: `/privacidade` e `/exclusao-de-dados`. Defina
+`NEXT_PUBLIC_PRIVACY_EMAIL` com o seu e-mail para que apareçam corretamente.
+Se a página *App settings → Basic* não carregar (bug conhecido da Meta), informe as URLs pelo fluxo
+de **App Review** (*Requests → Request advanced access*).
 
-> The **Instagram** app ID/secret are what you need — not the ones on
-> *App settings → Basic*.
+**4g. Redirect URI e webhook** vêm depois, no Passo 8, porque dependem da URL publicada.
 
-Same screen as above: **Use cases → Customize use case → API setup with
-Instagram login**. In the step titled **"1. Generate access tokens"** (or the
-*Business login settings* panel next to it) you will find:
+**4h. Modo Live.** Quando tudo estiver configurado (Passo 8), **publique o app (modo Live)**. Em
+modo Desenvolvimento a Meta só entrega o webhook de teste do painel, não os eventos reais.
 
-- **Instagram app ID**
-- **Instagram app secret** — click **Show**, re-enter your Facebook password,
-  then copy it.
-
-Save both. They become `INSTAGRAM_APP_ID` and `INSTAGRAM_APP_SECRET`.
-
-If the *App settings → Basic* page fails to render (see the note in Step 4g),
-this Instagram use-case panel is also the only place you can read the secret —
-which is another reason to take it from here.
-
-### 4d. Permissions the app requests
-
-At login the app asks Instagram for exactly three scopes (see
-`lib/instagram/oauth.ts`):
-
-- `instagram_business_basic` — profile and media
-- `instagram_business_manage_comments` — read comments, post replies
-- `instagram_business_manage_messages` — send the private-reply DM
-- `instagram_business_manage_insights` — per-post reach/views for the dashboard rankings
-
-In Development Mode with your own tester account these are granted on the
-consent screen with no review. You only request **Advanced Access** for them
-under *App Review → Permissions and features* if you later open the app to
-accounts other than your own.
-
-### 4e. Add yourself as an Instagram Tester
-
-While the app is in **Development mode**, only tester accounts can authorise it.
-
-1. **App roles → Roles → Add people → Instagram Tester**.
-2. Enter your Instagram username and send the invite.
-3. Accept it in the Instagram app: **Settings → Apps and websites → Tester
-   invites → Accept**.
-
-**No App Review is needed** while the app stays in Development Mode and you use
-your own tester account. That is the entire reason this is a weekend project
-rather than a six-week one.
-
-### 4f. Redirect URI and webhook come later
-
-The remaining Meta fields — OAuth redirect URI and the webhook callback — need
-your deployed HTTPS URL, so they are done in Step 8 after deploying.
-
-### 4g. Privacy Policy URL — paste it in the App Review flow
-
-Meta asks for a Privacy Policy URL, a Terms of Service URL and a Data Deletion
-URL. Normally these live under **App settings → Basic**.
-
-**That page currently fails to render for many apps (ongoing Meta bug) — the
-fields either never load or refuse to save.** Do not fight it.
-
-Instead, supply the URLs through the **App Review** flow: **App Review →
-Requests** (or **Permissions and features → Request advanced access**). When you
-start a submission, Meta asks for the same Privacy Policy / Terms / Data
-Deletion URLs inline in that form — **paste them there**. Meta accepts the values
-submitted through App Review, and they propagate to the app record even though
-Basic Settings will not display them.
-
-You only need this once you go beyond Development Mode. For a personal
-single-account setup on your own tester account, you can skip it entirely until
-you decide to publish.
-
----
-
-## Step 5 — Environment variables
-
+### Passo 5 — Variáveis de ambiente
 ```bash
 cp .env.example .env.local
 ```
-
-Fill in `.env.local`:
-
-| Variable | Where it comes from |
-|---|---|
-| `INSTAGRAM_APP_ID` | Step 4c |
-| `INSTAGRAM_APP_SECRET` | Step 4c |
-| `WEBHOOK_VERIFY_TOKEN` | Invent any random string. You paste the *same* value into Meta in Step 8. |
-| `TOKEN_ENC_KEY` | `openssl rand -hex 32` — must be exactly 64 hex chars (AES-256 key for the stored token) |
-| `SESSION_SECRET` | `openssl rand -hex 32` |
-| `CRON_SECRET` | `openssl rand -hex 32` |
-| `DATABASE_URL` | Step 3 |
-| `APP_URL` | `http://localhost:3000` for now; your Vercel URL after Step 6 |
-
-Generate the three secrets:
-
+Preencha (veja a [tabela](#variáveis-de-ambiente)). Gere os três segredos com:
 ```bash
-openssl rand -hex 32   # run three times, one per secret
+openssl rand -hex 32   # rode 3 vezes: TOKEN_ENC_KEY, SESSION_SECRET, CRON_SECRET
 ```
+`APP_URL` nunca pode terminar com `/`: a Meta compara o redirect URI caractere a caractere.
 
-`APP_URL` must never have a trailing slash — the OAuth redirect URI is built
-from it and Meta compares it character for character.
-
----
-
-## Step 6 — Run the migrations
-
-> **Gotcha:** `drizzle-kit` loads `.env`, **not** `.env.local`. Without this
-> copy, `pnpm db:migrate` fails with `[x] url: undefined` even though your
-> `.env.local` is filled in correctly. Both files are gitignored.
+### Passo 6 — Migrations
+> `drizzle-kit` lê o `.env`, **não** o `.env.local`. Sem a cópia abaixo, o comando falha com
+> `url: undefined`.
 
 ```bash
 cp .env.local .env
 pnpm db:migrate
 ```
+Isso cria todas as tabelas (contas, automações, contatos, eventos, leads, bio, etc.).
 
-This creates the `account`, `automation`, `webhook_event`, `comment_event` and
-inbox tables in Neon. Verify with `pnpm db:studio` if you like — it reads `.env`
-too. Whenever you change `.env.local`, re-copy it if you plan to run a `db:*`
-command.
-
----
-
-## Step 7 — Deploy
-
-Webhooks require a public HTTPS URL, so deploy before finishing the Meta config.
-
+### Passo 7 — Publique na Vercel
 ```bash
 pnpm dlx vercel deploy --prod
 ```
+Na primeira vez é interativo (login e vínculo do projeto). Depois, em **Settings → Environment
+Variables**, cadastre **todas** as variáveis do `.env.local`, trocando `APP_URL` pela URL pública
+(`https://seu-app.vercel.app`, sem barra final). Faça um novo deploy para valer.
 
-The first run is interactive — it asks you to log in and link or create the
-Vercel project. Answer the prompts, then note the deployment URL it prints.
+Confirme que **Settings → Deployment Protection** está **desligada** em produção. Se estiver
+ligada, a Vercel responde 401 para a Meta e para os crons, e tudo falha em silêncio.
 
-Then, in the **Vercel dashboard → your project → Settings → Environment
-Variables**, add every variable from `.env.local` — with one change:
+### Passo 8 — Aponte a Meta para o seu app
+**8a. Redirect URI.** *Instagram → API setup with Instagram login → Business login settings*:
+`https://seu-app.vercel.app/api/auth/instagram/callback`
+(igual ao `APP_URL`: mesmo esquema, domínio, sem barra final, sem `www` trocado).
 
-- `APP_URL` = your deployed URL, e.g. `https://your-app.vercel.app`
-  (HTTPS, no trailing slash)
+**8b. Webhook.** Na mesma página (ou *Instagram → Webhooks*):
+- **Callback URL:** `https://seu-app.vercel.app/api/webhooks/instagram`
+- **Verify token:** o mesmo `WEBHOOK_VERIFY_TOKEN` do `.env`
+- Clique em **Verify and save** e assine os campos **`comments`**, **`messages`** e
+  **`messaging_postbacks`** (este último é o do botão "Já sigo").
 
-Redeploy so the new values take effect:
+O app chama `/me/subscribed_apps` no login, então a assinatura por conta é automática.
 
-```bash
-pnpm dlx vercel deploy --prod
-```
+### Passo 9 — Crons (agendamentos)
+O app precisa de três rotinas, todas chamadas com `Authorization: Bearer <CRON_SECRET>`:
 
-Finally, check **Settings → Deployment Protection** is **off** for production.
-If it is on, Vercel answers 401 to anyone without a session cookie — which
-includes Meta's webhook delivery and the cron callers, and both will fail
-silently.
+| Quando | Rota | Para quê |
+|---|---|---|
+| a cada 2–5 min | `/api/cron/process-events` | Reprocessa envios que falharam dentro da janela de 7 dias |
+| a cada 15 min | `/api/cron/sync-inbox` | Atualiza conversas e a lista de posts/stories |
+| 1× por dia | `/api/cron/refresh-token` | Renova o token de 60 dias. **Se parar, tudo para em silêncio** |
 
----
+**Como agendar (escolha uma):**
+- **[cron-job.org](https://cron-job.org)** (grátis): crie um job para cada rota, método GET, com o
+  cabeçalho `Authorization: Bearer <CRON_SECRET>`. É o mais confiável para intervalos curtos.
+- **GitHub Actions** (já incluso em `.github/workflows/cron.yml`): crie os *secrets* `APP_URL` e
+  `CRON_SECRET` no seu repositório. Execuções agendadas do GitHub podem atrasar vários minutos.
+- **Vercel Pro:** basta adicionar as rotas em `vercel.json`. Na Hobby só o diário é permitido; por
+  isso `refresh-token` já vem em `vercel.json`.
 
-## Step 8 — Point Meta at your deployed app
-
-Back in the Meta dashboard, with your real URL in hand.
-
-### 8a. OAuth redirect URI
-
-**Instagram → API setup with Instagram login → Business login settings**:
-
-- **Redirect URI**: `https://your-app.vercel.app/api/auth/instagram/callback`
-
-It must match `APP_URL` exactly — same scheme, same host, no trailing slash, no
-`www` mismatch. This is the single most common cause of a failed login.
-
-### 8b. Webhook
-
-Same page, or **Instagram → Webhooks**:
-
-- **Callback URL**: `https://your-app.vercel.app/api/webhooks/instagram`
-- **Verify token**: the exact `WEBHOOK_VERIFY_TOKEN` string from Step 5
-- Click **Verify and save** — Meta calls your `GET` handler and expects the
-  challenge echoed back. A failure here means the app is not deployed, the URL
-  is wrong, or the token does not match.
-- Then **subscribe to the fields**: `comments` and `messages`.
-
-The app itself calls `/me/subscribed_apps` when you log in, so the per-account
-subscription is handled for you — you only need the app-level field
-subscriptions above.
+### Passo 10 — Use
+1. Abra `https://seu-app.vercel.app` e clique em **Entrar com Instagram**.
+2. **Automações → Nova automação**: palavra-chave, posts, mensagens e link.
+3. Ative e comente a palavra de **outra conta** (comentários da própria conta são ignorados de propósito).
 
 ---
 
-## Step 9 — Scheduled jobs
+## Usando
 
-Two paths, depending on your Vercel plan.
+- **Primeiros passos** no menu guia a criação da primeira automação.
+- **Automação de comentário:** defina palavras, posts, resposta pública, DM, botão e se exige seguir.
+- **Automação de story:** escolha "qualquer story" ou um específico, o texto, e se quer pedir
+  e-mail/WhatsApp. Precisa do campo `messages` do webhook ativo.
+- **Link na bio:** em *Minha página de bio*, monte seus links e o visual. O endereço é
+  `https://seu-app.vercel.app/u/<seu-usuario>`.
+- **Reenviar link:** na lista de automações de comentário, o botão confere quem tocou no botão nas
+  últimas 24 h e não recebeu, e envia para quem já segue (até 25 pessoas por clique).
 
-**Vercel Pro** — add the sub-daily jobs to `vercel.json` alongside the existing
-daily one:
+---
+
+## Variáveis de ambiente
+
+| Variável | Obrigatória | Origem |
+|---|---|---|
+| `INSTAGRAM_APP_ID` | sim | Passo 4c |
+| `INSTAGRAM_APP_SECRET` | sim | Passo 4c |
+| `WEBHOOK_VERIFY_TOKEN` | sim | Texto qualquer; o mesmo valor vai na Meta (Passo 8b) |
+| `TOKEN_ENC_KEY` | sim | `openssl rand -hex 32` (64 caracteres hex, chave AES-256 do token) |
+| `SESSION_SECRET` | sim | `openssl rand -hex 32` |
+| `CRON_SECRET` | sim | `openssl rand -hex 32` |
+| `DATABASE_URL` | sim | Passo 3 (string *pooled* do Neon) |
+| `APP_URL` | sim | `http://localhost:3000` localmente; sua URL pública em produção, sem `/` final |
+| `NEXT_PUBLIC_PRIVACY_EMAIL` | não | E-mail exibido nas páginas de privacidade e exclusão de dados |
+| `LEADS_WEBHOOK_SECRET` | não | Se definido, é enviado como `Authorization: Bearer` ao seu webhook de leads |
+
+---
+
+## Webhook de leads
+
+Em **Leads → Enviar para o meu site** você informa uma URL. A cada lead novo (e a cada atualização,
+por exemplo quando chega o WhatsApp) o app faz um `POST` JSON, com timeout de 8 s. Falhas nunca
+interrompem o fluxo da DM.
 
 ```json
 {
-  "crons": [
-    { "path": "/api/cron/process-events", "schedule": "*/2 * * * *" },
-    { "path": "/api/cron/sync-inbox",     "schedule": "*/15 * * * *" },
-    { "path": "/api/cron/refresh-token",  "schedule": "0 4 * * *" }
-  ]
+  "event": "lead.created",
+  "account": "seu.perfil",
+  "lead": {
+    "id": "…",
+    "instagram": "usuario",
+    "instagramId": "…",
+    "source": "story",
+    "trigger": "guia",
+    "email": "a@b.com",
+    "phone": "31999990000",
+    "complete": true,
+    "createdAt": "…",
+    "updatedAt": "…"
+  }
 }
 ```
-
-**Vercel Hobby** (the default, and what this repo ships with) — sub-daily crons
-are not available, so `.github/workflows/cron.yml` drives them from GitHub
-Actions instead. Add two repo secrets under **Settings → Secrets and variables →
-Actions**:
-
-- `APP_URL` — `https://your-app.vercel.app` (no trailing slash)
-- `CRON_SECRET` — the same value as the Vercel env var
-
-The daily `refresh-token` job stays in `vercel.json` either way. **If it stops
-running, the 60-day token lapses and every automation silently dies.**
+`event` é `lead.created` ou `lead.updated`. Com `LEADS_WEBHOOK_SECRET` definido, a requisição leva
+`Authorization: Bearer <valor>` para você validar no seu servidor.
 
 ---
 
-## Step 10 — Use it
+## Solução de problemas
 
-1. Open `https://your-app.vercel.app`.
-2. Click **Continue with Instagram**, authorise with your tester account.
-3. **Automations → New**: name it, add keywords, write the comment replies and
-   the DM, pick the post scope.
-4. Set the status to **live** and publish.
-5. Comment your keyword on the target post from a *different* Instagram account
-   (self-comments are ignored by design) and watch the **Inbox** activity log.
-
----
-
-## Local development
-
-```bash
-pnpm dev
-```
-
-Webhooks cannot reach `localhost`, so comment events will not fire locally.
-Either use a Vercel preview deployment, or tunnel:
-
-```bash
-pnpm dlx ngrok http 3000
-```
-
-then set `APP_URL` to the ngrok URL and point the Meta webhook and redirect URI
-at it. The UI, database and matcher logic all work fine locally without a
-tunnel.
-
----
-
-## Troubleshooting
-
-| Symptom | Cause |
+| Sintoma | Causa provável |
 |---|---|
-| Login bounces back with an error | Redirect URI mismatch (Step 8a), or `APP_URL` has a trailing slash |
-| "Invalid platform app" on login | You set up Facebook Login instead of Instagram Login (Step 4b) |
-| Webhook "Verify and save" fails | App not deployed, wrong callback path, or `WEBHOOK_VERIFY_TOKEN` differs between Meta and Vercel |
-| Login succeeds, nothing ever fires | Field subscriptions missing (Step 8b), or the automation is still `draft` |
-| Comment reply posts, DM never arrives | Private-reply window expired (7 days), or the comment already had a private reply |
-| Everything stopped after ~2 months | The daily `refresh-token` cron stopped and the token lapsed |
-| `Missing environment variable X` | That variable is not set in Vercel — `.env.local` is not uploaded for you |
-| Basic Settings page blank / won't save | Known Meta bug — submit the URLs via App Review instead (Step 4g) |
-| Webhook or cron returns 401 from Vercel | Vercel **Deployment Protection** is on — disable it for production, or Meta and GitHub Actions cannot reach the endpoints |
-| `pnpm db:migrate` says `url: undefined` | You only have `.env.local`; drizzle-kit reads `.env` (Step 6) |
+| O login volta com erro | Redirect URI diferente do `APP_URL`, ou `APP_URL` com barra final (Passo 8a) |
+| "Invalid platform app" no login | Foi configurado o login do Facebook em vez do login do Instagram (Passo 4b) |
+| "Verify and save" do webhook falha | App não publicado, caminho errado (o correto é `/api/webhooks/instagram`), token diferente ou **Deployment Protection** ligada |
+| Só o teste do painel chega, nenhum evento real | App em modo Desenvolvimento: publique em modo **Live** (Passo 4h) |
+| Login ok, mas nada dispara | Campos do webhook não assinados (`comments`, `messages`, `messaging_postbacks`) ou a automação está em rascunho/pausada |
+| A resposta pública sai, mas a DM não chega | Janela de 7 dias expirada, comentário já teve resposta privada, ou a pessoa apagou/arquivou a conversa |
+| O botão "Já sigo" não libera o link | A Meta pode demorar a registrar o novo seguidor (o app confere duas vezes, com 4 s de intervalo). Use **Reenviar link** |
+| Resposta ao story não dispara | A automação está em "um story específico" e a resposta veio de outro story ou de um anúncio. Use "qualquer story" |
+| Tudo parou depois de ~2 meses | O cron `refresh-token` parou e o token de 60 dias venceu |
+| `Missing environment variable X` | Falta cadastrar a variável na Vercel (o `.env.local` não é enviado) |
+| `pnpm db:migrate` diz `url: undefined` | Só existe `.env.local`; o drizzle-kit lê `.env` (Passo 6) |
+| Webhook ou cron responde 401 da Vercel | **Deployment Protection** ligada em produção |
+| A página *Basic settings* da Meta não abre | Bug conhecido: informe as URLs pelo App Review (Passo 4f) |
 
 ---
 
-## Architecture
+## Arquitetura
+
+**Stack:** Next.js (App Router) + React + Tailwind CSS v4 · TypeScript · Drizzle ORM + Neon
+(Postgres) · zod · jose (sessão) · Vitest.
 
 ```
-Instagram comment
-      ↓  webhook (field: "comments")
-POST /api/webhooks/instagram
-      ↓  verify signature → INSERT raw event → 200 (fast)
-      ↓  after() — runs once the response is already sent
-  match automation → public comment reply → private-reply DM
-      ↓
-Cron sweeper retries anything left pending or failed
+app/
+  (dash)/…          Telas logadas: painel, automações, entrada, leads, bio, primeiros passos
+  api/webhooks/     Recebe os eventos da Meta (rota crítica)
+  api/cron/         process-events, sync-inbox, refresh-token
+  api/auth/         Login do Instagram (OAuth) e logout
+  u/[username]/     Página pública do link na bio
+  r/[id]/           Redirecionamento com contagem de cliques
+  como-funciona/    Página pública de apresentação
+lib/
+  automation/       Regras puras (matcher, flow, story, draft, missed) e o processor
+  instagram/        Cliente da Graph API, OAuth, tipos
+  bio/              Temas, estilo e dados da página de bio
+  insights/         Métricas e rankings
+db/schema.ts        Esquema do banco (Drizzle) · db/migrations/ migrations
 ```
 
-The webhook handler acknowledges before doing any work, because Meta throttles
-and eventually disables slow endpoints. Durability comes from the
-`webhook_event` table plus the cron sweeper rather than from a queue service.
-
-| Path | Role |
-|---|---|
-| `app/api/webhooks/instagram/route.ts` | Receives events. The critical file. |
-| `lib/automation/matcher.ts` | Keyword and scope matching. Pure, fully unit-tested. |
-| `lib/automation/processor.ts` | Fires the reply and the DM; writes the activity log. |
-| `lib/instagram/client.ts` | Graph API calls. |
-| `lib/instagram/oauth.ts` | Business Login and the 60-day token lifecycle. |
-| `db/schema.ts` | Drizzle schema. |
-
-### Cron jobs
-
-| Schedule | Job | Why |
-|---|---|---|
-| every 2–5 min | `process-events` | Retries failed sends within the 7-day window |
-| every 15 min | `sync-inbox` | Backfills DM threads and refreshes the post picker |
-| daily 04:00 | `refresh-token` | Renews the 60-day token — **if this stops, everything silently stops** |
+Regras de negócio ficam em módulos **puros** e testados (`matcher`, `flow`, `story`, `draft`,
+`missed`, `bio/style`, `inbox`…), separados dos efeitos (`processor`, `client`).
 
 ---
 
-## Commands
+## Comandos
 
 ```bash
-pnpm dev          # dev server
-pnpm test         # unit tests
-pnpm typecheck    # tsc --noEmit
-pnpm lint         # eslint
-pnpm db:generate  # generate a migration after editing db/schema.ts
-pnpm db:migrate   # apply migrations
-pnpm db:studio    # browse the database
+pnpm dev           # servidor de desenvolvimento
+pnpm build         # build de produção
+pnpm lint          # ESLint
+pnpm typecheck     # tsc --noEmit
+pnpm test          # testes unitários (Vitest)
+pnpm db:generate   # gera migration após editar db/schema.ts
+pnpm db:migrate    # aplica as migrations
+pnpm db:studio     # navegador do banco
 ```
 
----
-
-## Notes and gotchas
-
-- **Keyword matching defaults to whole-word**, so `link` does not fire on
-  `linkedin`. Switch to "anywhere in the comment" per automation if you want the
-  looser behaviour.
-- **Comment replies rotate** between the variants you write. Posting an
-  identical reply every time is the fastest way to get flagged as spam.
-- **Self-comments are ignored**, otherwise the bot replies to its own replies
-  forever.
-- **The Inbox is read-only.** Replying from here would run into Meta's 24-hour
-  messaging window and its `human_agent` rules; the Instagram app has none of
-  those problems.
-- **DM history beyond 20 messages** exists only in your own database — the
-  Instagram API caps `GET /me/conversations` at the 20 most recent messages per
-  thread, which is why every incoming message is mirrored locally.
+**Desenvolvimento local:** webhooks não chegam ao `localhost`. Use um deploy de preview da Vercel ou
+um túnel (`pnpm dlx ngrok http 3000`, ajustando `APP_URL` e as URLs na Meta). A interface, o banco e
+a lógica de matching funcionam localmente sem túnel.
 
 ---
 
-## Origem
+## Custos
 
-Manochat parte do projeto [less-chat/less-chat](https://github.com/less-chat/less-chat)
-(autor: Nelson). Esse repositório **não declara licença**; enquanto isso não for
-resolvido com o autor, este repo deve permanecer **privado** e não deve ser distribuído.
+Com poucas contas, **praticamente zero**: a API do Instagram é gratuita e Vercel e Neon têm planos
+grátis. Ao crescer ou ao usar comercialmente, considere:
+
+- **Vercel Pro** (cerca de US$ 20/mês). O plano Hobby é para uso **pessoal e não comercial**.
+- **Neon** pago (na faixa de US$ 19/mês) quando o plano grátis não bastar.
+- Domínio próprio (algumas dezenas de reais por ano).
+- Seu tempo: a API da Meta muda com frequência.
+
+---
+
+## Segurança e privacidade
+
+- **Sem senha:** o acesso é pelo Login oficial do Instagram, com escopos explícitos, revogável em
+  *Configurações → Apps e sites*.
+- **Token do Instagram criptografado** no banco (AES-256, `TOKEN_ENC_KEY`).
+- **Assinatura do webhook** (`X-Hub-Signature-256`) validada antes de processar.
+- **Crons protegidos** por `Authorization: Bearer <CRON_SECRET>`.
+- **Links seguros:** só URLs `http(s)` são aceitas nos links da bio e redirecionamentos.
+- **LGPD:** páginas `/privacidade` e `/exclusao-de-dados` incluídas; o pedido de exclusão remove os
+  dados da conta. Ajuste os textos e o e-mail de contato para o seu caso antes de operar para terceiros.
+- Se você for disponibilizar o app a outras pessoas, leia o [guia de App Review](docs/app-review.md).
+
+Encontrou uma falha de segurança? Abra uma *issue* privada ou fale diretamente com o mantenedor em vez
+de publicar os detalhes.
+
+---
+
+## Contribuindo e suporte
+
+Contribuições são bem-vindas: abra uma *issue* descrevendo o problema ou a ideia, ou um *pull
+request* pequeno e focado. Antes de enviar, rode `pnpm lint`, `pnpm typecheck` e `pnpm test`.
+Veja também o [CONTRIBUTING.md](CONTRIBUTING.md).
+
+**Quer usar mas não quer configurar sozinho?** O mantenedor oferece ajuda com a instalação e a
+configuração. Pedidos de acesso em [instagram.com/heliofilhou](https://instagram.com/heliofilhou).
+
+---
+
+## Licença
+
+[MIT](LICENSE) © 2026 Helio Filho. Use, modifique e distribua à vontade, mantendo o aviso de copyright.
+
+O Manochat **não é afiliado** à Meta, ao Instagram nem à Manychat. "Instagram" e "Meta" são marcas de
+seus respectivos donos.
+
+## Créditos
+
+O projeto partiu da base do [less-chat/less-chat](https://github.com/less-chat/less-chat), criado por
+**Nelson**, e evoluiu para um produto próprio: suporte a várias contas, fluxo de seguir antes de
+liberar o link, automações de story, captura de leads, link na bio, insights por conta, novo
+front-end e a página pública.
