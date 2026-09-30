@@ -1,43 +1,172 @@
 @import "tailwindcss";
 
 @theme {
-  --color-canvas: #f7f7f8;
+  --color-bg: #f8f5f0;
   --color-surface: #ffffff;
-  --color-ink: #17171a;
-  --color-muted: #6b6b76;
-  --color-line: #e6e6ea;
-  --color-accent: #6d28d9;
-  --color-accent-soft: #f3efff;
-  --color-good: #157f4a;
-  --color-good-soft: #e8f6ee;
-  --color-bad: #b3261e;
-  --color-bad-soft: #fdecea;
-  --color-warn: #8a5a00;
-  --color-warn-soft: #fdf3e0;
+  --color-ink: #2b2724;
+  --color-ink-2: #4f4841;
+  --color-muted: #7c756c;
+  --color-muted-2: #9a938a;
+  --color-line: #ece6dd;
+  --color-line-soft: #f3eee7;
+  --color-line-strong: #ddd5ca;
+  --color-line-dashed: #c9c0b3;
+  --color-fill: #f2ede6;
+  --color-accent: #f08c6e;
+  --color-accent-hover: #f4a184;
+  --color-accent-soft: #fdeee7;
+  --color-accent-line: #f6cdbe;
+  --color-accent-ink: #b25a3e;
+  --color-accent-ink-2: #8e4128;
+  --color-success: #3f8f64;
+  --color-success-bg: #e7f4ec;
+  --color-success-ink: #2d5a40;
+  --color-warning: #8a6420;
+  --color-warning-bg: #fbf2dc;
+  --color-warning-ink: #6f5222;
+  --color-danger: #c0503f;
+  --color-danger-bg: #fcede9;
+  --color-danger-line: #f4d5cd;
+  --color-danger-ink: #7a3326;
+
+  --font-sans: var(--font-jakarta), system-ui, sans-serif;
+
+  --shadow-nav: 0 1px 2px rgba(27, 23, 18, 0.06), 0 4px 14px rgba(27, 23, 18, 0.05);
+  --shadow-hover: 0 14px 30px rgba(27, 23, 18, 0.07);
+  --shadow-float: 0 20px 50px rgba(27, 23, 18, 0.07);
+  --shadow-pop: 0 18px 50px rgba(27, 23, 18, 0.18);
+  --shadow-phone: 0 30px 60px rgba(27, 23, 18, 0.22);
+
+  --ease-brand: cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 
 html,
 body {
-  background: var(--color-canvas);
+  margin: 0;
+  background: var(--color-bg);
   color: var(--color-ink);
-}
-
-body {
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }
 
-/* Inputs are used heavily in the automation builder; give them one shared look. */
-.field {
-  width: 100%;
-  border-radius: 0.5rem;
-  border: 1px solid var(--color-line);
-  background: var(--color-surface);
-  padding: 0.5rem 0.75rem;
-  font-size: 0.875rem;
-  outline: none;
+* {
+  box-sizing: border-box;
 }
-.field:focus {
-  border-color: var(--color-accent);
-  box-shadow: 0 0 0 3px var(--color-accent-soft);
+
+button,
+input,
+textarea,
+select {
+  font-family: inherit;
+}
+
+button {
+  transition:
+    background-color 0.25s ease,
+    border-color 0.25s ease,
+    color 0.25s ease,
+    box-shadow 0.25s ease,
+    transform 0.2s ease;
+}
+button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+p,
+li {
+  text-wrap: pretty;
+}
+h1,
+h2 {
+  text-wrap: balance;
+}
+
+@keyframes mpulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+@keyframes mspin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes mup {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes mfade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes mfloat {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+@keyframes mgrow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@utility animate-up {
+  animation: mup 0.6s var(--ease-brand) backwards;
+}
+@utility animate-up-fast {
+  animation: mup 0.45s var(--ease-brand) backwards;
+}
+@utility animate-fade {
+  animation: mfade 0.35s ease;
+}
+@utility animate-pulse-soft {
+  animation: mpulse 1.3s ease-in-out infinite;
+}
+@utility animate-spin-brand {
+  animation: mspin 0.8s linear infinite;
+}
+@utility animate-float {
+  animation: mfloat 7s ease-in-out 1s infinite;
+}
+@utility animate-grow {
+  animation: mgrow 1s var(--ease-brand) backwards;
+  transform-origin: left;
+}
+@utility scrollbar-none {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.001ms !important;
+  }
 }

@@ -5,166 +5,96 @@ import { redirect } from "next/navigation";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { automation, db } from "@/db";
+import { toRowFields, validate, type DraftStatus } from "@/lib/automation/draft";
 import { getSession } from "@/lib/session";
 
-const formSchema = z.object({
-  name: z.string().trim().min(1, "Give the automation a name."),
-  keywords: z
-    .string()
-    .transform((s) => s.split(",").map((k) => k.trim()).filter(Boolean))
-    .pipe(z.array(z.string()).min(1, "Add at least one keyword.")),
-  matchMode: z.enum(["exact_word", "contains"]),
-  scope: z.enum(["all_posts", "specific_posts", "from_now_on"]),
-  postIds: z.array(z.string()).default([]),
-  replyEnabled: z.boolean(),
-  replyVariants: z
-    .string()
-    .transform((s) => s.split("\n").map((v) => v.trim()).filter(Boolean)),
-  dmText: z.string().trim().min(1, "The DM cannot be empty."),
-  dmLink: z.string().trim(),
+const draftSchema = z.object({
+  id: z.string().nullable(),
+  name: z.string().max(60),
+  keywords: z.array(z.string().max(60)).max(30),
+  match: z.enum(["exact", "contains"]),
+  target: z.enum(["specific", "all", "future"]),
+  postIds: z.array(z.string().max(100)).max(200),
+  status: z.enum(["draft", "active", "paused"]),
+  publicReply: z.boolean(),
+  replies: z.array(z.string().max(300)).max(5),
+  dmInitial: z.string().max(1000),
+  btnLabel: z.string().max(20),
+  dmFollower: z.string().max(1000),
+  dmNonFollower: z.string().max(1000),
   requireFollow: z.boolean(),
-  openerText: z.string().trim().max(600),
-  followButtonLabel: z.string().trim().max(20, "Button labels are limited to 20 characters."),
-  notFollowerText: z.string().trim().max(600),
-  linkButtonLabel: z.string().trim().max(20, "Button labels are limited to 20 characters."),
+  url: z.string().max(2000),
+  linkButton: z.boolean(),
+  linkLabel: z.string().max(20),
 });
 
-export interface ActionState {
-  error?: string;
-}
+export type SaveResult =
+  | { ok: true; id: string; status: DraftStatus }
+  | { ok: false; error: string };
 
 async function requireAccountId(): Promise<string> {
   const session = await getSession();
-  if (!session) redirect("/login");
+  if (!session) redirect("/");
   return session.accountId;
 }
 
-function parse(formData: FormData) {
-  return formSchema.safeParse({
-    name: formData.get("name") ?? "",
-    keywords: formData.get("keywords") ?? "",
-    matchMode: formData.get("matchMode") ?? "exact_word",
-    scope: formData.get("scope") ?? "all_posts",
-    postIds: formData.getAll("postIds").map(String),
-    replyEnabled: formData.get("replyEnabled") === "on",
-    replyVariants: formData.get("replyVariants") ?? "",
-    dmText: formData.get("dmText") ?? "",
-    dmLink: formData.get("dmLink") ?? "",
-    requireFollow: formData.get("requireFollow") === "on",
-    openerText: formData.get("openerText") ?? "",
-    followButtonLabel: formData.get("followButtonLabel") ?? "",
-    notFollowerText: formData.get("notFollowerText") ?? "",
-    linkButtonLabel: formData.get("linkButtonLabel") ?? "",
-  });
-}
+const DB_STATUS = { draft: "draft", active: "live", paused: "paused" } as const;
 
 /**
- * A live automation must be able to actually do something. Catching this
- * here is what prevents the silent failure mode of publishing a rule that
- * DMs people an empty link.
+ * Creates or updates an automation from the editor. Only `status: "active"`
+ * is validated as a whole: a draft may be half-finished, a live rule may not
+ * (that is what prevents DMing people an empty link).
  */
-function validateForPublish(
-  data: z.infer<typeof formSchema>,
-  publish: boolean,
-): string | null {
-  if (!publish) return null;
-  if (data.dmText.includes("{link}") && !data.dmLink) {
-    return "Add the link before publishing — the DM contains {link} but no URL is set.";
-  }
-  if ((data.requireFollow || data.linkButtonLabel) && !data.dmLink) {
-    return "Add the link — the follow gate and link button both need a URL.";
-  }
-  if (data.dmLink && !/^https?:\/\//i.test(data.dmLink)) {
-    return "The link must start with http:// or https://.";
-  }
-  if (data.replyEnabled && data.replyVariants.length === 0) {
-    return "Add at least one comment reply, or turn off public replies.";
-  }
-  if (data.scope === "specific_posts" && data.postIds.length === 0) {
-    return "Select at least one post, or change the scope to all posts.";
-  }
-  return null;
-}
-
-export async function createAutomation(
-  _prev: ActionState,
-  formData: FormData,
-): Promise<ActionState> {
+export async function saveAutomation(input: unknown, status: DraftStatus): Promise<SaveResult> {
   const accountId = await requireAccountId();
-  const parsed = parse(formData);
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid form." };
+  const parsed = draftSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "Algo no formulário está fora do formato esperado." };
+  const draft = parsed.data;
+
+  if (status === "active") {
+    const errors = Object.values(validate(draft));
+    if (errors.length) return { ok: false, error: errors[0]![1] };
   }
 
-  const publish = formData.get("intent") === "publish";
-  const problem = validateForPublish(parsed.data, publish);
-  if (problem) return { error: problem };
-
-  const [row] = await db
-    .insert(automation)
-    .values({
-      accountId,
-      ...parsed.data,
-      dmLink: parsed.data.dmLink || null,
-      status: publish ? "live" : "draft",
-      // `from_now_on` means "from the moment it went live", so the cutoff is
-      // stamped at publish time rather than at creation.
-      appliesFrom:
-        parsed.data.scope === "from_now_on" && publish ? new Date() : null,
-    })
-    .returning({ id: automation.id });
-
-  revalidatePath("/automations");
-  redirect(`/automations/${row.id}`);
-}
-
-export async function updateAutomation(
-  _prev: ActionState,
-  formData: FormData,
-): Promise<ActionState> {
-  const accountId = await requireAccountId();
-  const id = String(formData.get("id") ?? "");
-  const parsed = parse(formData);
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid form." };
+  let existing: typeof automation.$inferSelect | undefined;
+  if (draft.id) {
+    [existing] = await db
+      .select()
+      .from(automation)
+      .where(and(eq(automation.id, draft.id), eq(automation.accountId, accountId)))
+      .limit(1);
+    if (!existing) return { ok: false, error: "Automação não encontrada." };
   }
 
-  const intent = formData.get("intent");
-  const publish = intent === "publish";
-  const problem = validateForPublish(parsed.data, publish);
-  if (problem) return { error: problem };
+  const fields = toRowFields(draft);
+  const publishing = status === "active";
+  // `from_now_on` means "from the moment it first went live"; editing a
+  // running rule must not silently move that cutoff forward.
+  const appliesFrom =
+    fields.scope === "from_now_on" ? (existing?.appliesFrom ?? (publishing ? new Date() : null)) : null;
 
-  const [existing] = await db
-    .select()
-    .from(automation)
-    .where(and(eq(automation.id, id), eq(automation.accountId, accountId)))
-    .limit(1);
-  if (!existing) return { error: "Automation not found." };
+  let id = existing?.id;
+  if (existing) {
+    await db
+      .update(automation)
+      .set({ ...fields, status: DB_STATUS[status], appliesFrom, updatedAt: new Date() })
+      .where(eq(automation.id, existing.id));
+  } else {
+    const [row] = await db
+      .insert(automation)
+      .values({ accountId, ...fields, status: DB_STATUS[status], appliesFrom })
+      .returning({ id: automation.id });
+    id = row.id;
+  }
 
-  const status = publish ? "live" : intent === "pause" ? "paused" : existing.status;
-
-  await db
-    .update(automation)
-    .set({
-      ...parsed.data,
-      dmLink: parsed.data.dmLink || null,
-      status,
-      // Only stamp the cutoff the first time it goes live, so editing a
-      // running automation doesn't silently move its window forward.
-      appliesFrom:
-        parsed.data.scope === "from_now_on"
-          ? (existing.appliesFrom ?? (publish ? new Date() : null))
-          : null,
-      updatedAt: new Date(),
-    })
-    .where(eq(automation.id, id));
-
-  revalidatePath("/automations");
-  revalidatePath(`/automations/${id}`);
-  return {};
+  revalidatePath("/automacoes");
+  revalidatePath(`/automacoes/${id}`);
+  revalidatePath("/painel");
+  return { ok: true, id: id!, status };
 }
 
-export async function setStatus(id: string, status: "live" | "paused") {
+/** The list-page switch. Drafts have no switch, so this only flips live ↔ paused. */
+export async function setAutomationStatus(id: string, status: "live" | "paused") {
   const accountId = await requireAccountId();
 
   const [existing] = await db
@@ -172,7 +102,7 @@ export async function setStatus(id: string, status: "live" | "paused") {
     .from(automation)
     .where(and(eq(automation.id, id), eq(automation.accountId, accountId)))
     .limit(1);
-  if (!existing) return;
+  if (!existing || existing.status === "draft") return { ok: false as const };
 
   await db
     .update(automation)
@@ -186,8 +116,9 @@ export async function setStatus(id: string, status: "live" | "paused") {
     })
     .where(eq(automation.id, id));
 
-  revalidatePath("/automations");
-  revalidatePath(`/automations/${id}`);
+  revalidatePath("/automacoes");
+  revalidatePath(`/automacoes/${id}`);
+  return { ok: true as const };
 }
 
 export async function deleteAutomation(id: string) {
@@ -195,6 +126,6 @@ export async function deleteAutomation(id: string) {
   await db
     .delete(automation)
     .where(and(eq(automation.id, id), eq(automation.accountId, accountId)));
-  revalidatePath("/automations");
-  redirect("/automations");
+  revalidatePath("/automacoes");
+  redirect("/automacoes");
 }

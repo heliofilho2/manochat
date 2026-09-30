@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;background:#F8F5F0;color:#2B2724;font-family:'Plus Jakarta Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+*{box-sizing:border-box}
+a{color:#B25A3E;text-decoration:underline;text-underline-offset:3px}
+a:hover{color:#2B2724}
+button,input,textarea,select{font-family:inherit}
+button{transition:background-color .25s ease,border-color .25s ease,color .25s ease,box-shadow .25s ease,transform .2s ease}
+button:active{transform:scale(.98)}
+@keyframes mpulse{0%,100%{opacity:1}50%{opacity:.5}}
+@keyframes mspin{to{transform:rotate(360deg)}}
+@keyframes mup{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes mfade{from{opacity:0}to{opacity:1}}
+@keyframes mfloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+@keyframes mgrow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+</style>
+<script src="./mc-data.js"></script>
+</helmet>
+<div style="min-height:100vh;background:#F8F5F0;color:#2B2724">
+  <header style="max-width:760px;margin:0 auto;padding:20px clamp(16px,4vw,32px);display:flex;align-items:center;justify-content:space-between;gap:12px">
+    <div style="display:flex;align-items:center;gap:9px">
+      <span style="width:24px;height:24px;border-radius:8px 8px 8px 2px;background:#F08C6E;display:block"></span>
+      <span style="font:700 20px/1 'Plus Jakarta Sans',sans-serif;letter-spacing:-0.02em">manochat</span>
+    </div>
+    <button onClick="{{ back }}" style="white-space:nowrap;height:40px;padding:0 14px;border-radius:11px;border:1px solid #ECE6DD;background:#FFFFFF;color:#2B2724;font:500 14px 'Plus Jakarta Sans',sans-serif;cursor:pointer">← Voltar</button>
+  </header>
+  <article style="max-width:760px;margin:0 auto;padding:clamp(16px,4vw,40px) clamp(16px,4vw,32px) 80px;display:flex;flex-direction:column;gap:28px">
+    <sc-if value="{{ isPrivacy }}" hint-placeholder-val="{{ true }}">
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <span style="font:500 13px 'Plus Jakarta Sans',sans-serif;color:#7C756C">Atualizada em 30 de setembro de 2026</span>
+        <h1 style="margin:0;font:700 clamp(34px,5vw,52px)/1.02 'Plus Jakarta Sans',sans-serif;letter-spacing:-0.025em">Política de Privacidade</h1>
+        <p style="margin:0;font:400 18px/1.6 'Plus Jakarta Sans',sans-serif;color:#4F4841;text-wrap:pretty">Em linguagem simples: o que o Manochat coleta, por quê, e como você controla seus dados, conforme a Lei Geral de Proteção de Dados (LGPD).</p>
+      </div>
+      <section style="display:flex;flex-direction:column;gap:10px;padding-top:24px;border-top:1px solid #ECE6DD">
+        <h2 style="margin:0;font:700 22px/1.2 'Plus Jakarta Sans',sans-serif">1. O que coletamos</h2>
+        <p style="margin:0;font:400 16px/1.7 'Plus Jakarta Sans',sans-serif;color:#4F4841">Quando você conecta sua conta pela integração oficial da Meta, recebemos: nome de usuário, nome, foto de perfil, número de seguidores, seus posts (miniaturas e legendas), os comentários feitos nos seus posts e as mensagens diretas trocadas pelas automações. Também guardamos as automações e textos que você cria. Nunca recebemos sua senha.</p>
+      </section>
+      <section style="display:flex;flex-direction:column;gap:10px;padding-top:24px;border-top:1px solid #ECE6DD">
+        <h2 style="margin:0;font:700 22px/1.2 'Plus Jakarta Sans',sans-serif">2. Para que usamos</h2>
+        <p style="margin:0;font:400 16px/1.7 'Plus Jakarta Sans',sans-serif;color:#4F4841">Só para fazer o app funcionar: identificar comentários com suas palavras-chave, responder, enviar as DMs, mostrar métricas no painel e montar sua página de link na bio. Não vendemos dados e não usamos suas conversas para publicidade.</p>
+      </section>
+      <section style="display:flex;flex-direction:column;gap:10px;padding-top:24px;border-top:1px solid #ECE6DD">
+        <h2 style="margin:0;font:700 22px/1.2 'Plus Jakarta Sans',sans-serif">3. Com quem compartilhamos</h2>
+        <p style="margin:0;font:400 16px/1.7 'Plus Jakarta Sans',sans-serif;color:#4F4841">Com a Meta, para enviar respostas e mensagens em seu nome, e com provedores de hospedagem que armazenam os dados com criptografia. Nenhum outro terceiro tem acesso.</p>
+      </section>
+      <section style="display:flex;flex-direction:column;gap:10px;padding-top:24px;border-top:1px solid #ECE6DD">
+        <h2 style="margin:0;font:700 22px/1.2 'Plus Jakarta Sans',sans-serif">4. Por quanto tempo</h2>
+        <p style="margin:0;font:400 16px/1.7 'Plus Jakarta Sans',sans-serif;color:#4F4841">Enquanto sua conta estiver ativa. Histórico de comentários e DMs é apagado automaticamente após 12 meses. Se você excluir a conta, apagamos tudo em até 30 dias.</p>
+      </section>
+      <section style="display:flex;flex-direction:column;gap:10px;padding-top:24px;border-top:1px solid #ECE6DD">
+        <h2 style="margin:0;font:700 22px/1.2 'Plus Jakarta Sans',sans-serif">5. Seus direitos</h2>
+        <p style="margin:0;font:400 16px/1.7 'Plus Jakarta Sans',sans-serif;color:#4F4841">Você pode pedir acesso, correção, cópia ou exclusão dos seus dados a qualquer momento, e revogar a conexão com o Instagram. Escreva para <a href="mailto:privacidade@manochat.app">privacidade@manochat.app</a> — respondemos em até 15 dias.</p>
+      </section>
+    </sc-if>
+
+    <sc-if value="{{ isDeletion }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <span style="font:500 13px 'Plus Jakarta Sans',sans-serif;color:#7C756C">Atualizada em 30 de setembro de 2026</span>
+        <h1 style="margin:0;font:700 clamp(34px,5vw,52px)/1.02 'Plus Jakarta Sans',sans-serif;letter-spacing:-0.025em">Exclusão de dados</h1>
+        <p style="margin:0;font:400 18px/1.6 'Plus Jakarta Sans',sans-serif;color:#4F4841;text-wrap:pretty">Você pode apagar todos os seus dados do Manochat quando quiser. Escolha o jeito mais fácil pra você.</p>
+      </div>
+      <section style="display:flex;flex-direction:column;gap:10px;padding-top:24px;border-top:1px solid #ECE6DD">
+        <h2 style="margin:0;font:700 22px/1.2 'Plus Jakarta Sans',sans-serif">Pelo Instagram</h2>
+        <p style="margin:0;font:400 16px/1.7 'Plus Jakarta Sans',sans-serif;color:#4F4841">No Instagram, vá em Configurações → Apps e sites → Manochat → Remover. Recebemos o aviso da Meta e apagamos seus dados automaticamente em até 30 dias.</p>
+      </section>
+      <section style="display:flex;flex-direction:column;gap:16px;padding-top:24px;border-top:1px solid #ECE6DD">
+        <h2 style="margin:0;font:700 22px/1.2 'Plus Jakarta Sans',sans-serif">Por aqui</h2>
+        <sc-if value="{{ notSent }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex;flex-direction:column;gap:14px;padding:20px;border-radius:18px;background:#FFFFFF;border:1px solid #ECE6DD">
+            <label style="display:flex;flex-direction:column;gap:6px;font:500 14px 'Plus Jakarta Sans',sans-serif">Seu @ do Instagram
+              <input value="{{ user }}" onChange="{{ setUser }}" placeholder="@seuusuario" style="height:48px;padding:0 14px;border-radius:12px;border:1px solid #DDD5CA;background:#fff;font:400 16px 'Plus Jakarta Sans',sans-serif;color:#2B2724;outline-color:#F08C6E">
+            </label>
+            <label style="display:flex;flex-direction:column;gap:6px;font:500 14px 'Plus Jakarta Sans',sans-serif">E-mail para confirmação
+              <input value="{{ email }}" onChange="{{ setEmail }}" type="email" placeholder="voce@email.com" style="height:48px;padding:0 14px;border-radius:12px;border:1px solid #DDD5CA;background:#fff;font:400 16px 'Plus Jakarta Sans',sans-serif;color:#2B2724;outline-color:#F08C6E">
+            </label>
+            <sc-if value="{{ err }}" hint-placeholder-val="{{ false }}"><span style="font:500 14px 'Plus Jakarta Sans',sans-serif;color:#C0503F">{{ err }}</span></sc-if>
+            <button onClick="{{ submit }}" style="white-space:nowrap;align-self:flex-start;height:48px;padding:0 20px;border-radius:12px;border:none;background:#C0503F;color:#fff;font:600 15px 'Plus Jakarta Sans',sans-serif;cursor:pointer">{{ submitLabel }}</button>
+            <span style="font:400 13px/1.5 'Plus Jakarta Sans',sans-serif;color:#7C756C">Isso apaga automações, histórico, contatos e sua página de bio. Não dá pra desfazer.</span>
+          </div>
+        </sc-if>
+        <sc-if value="{{ sent }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:8px;padding:20px;border-radius:18px;background:#E7F4EC;color:#2D5A40">
+            <strong style="font:700 20px 'Plus Jakarta Sans',sans-serif">Pedido recebido</strong>
+            <span style="font:400 15px/1.6 'Plus Jakarta Sans',sans-serif">Protocolo <strong style="font-family:'Plus Jakarta Sans',sans-serif">MC-2026-0930-4821</strong>. Mandamos a confirmação para {{ email }}. Seus dados serão apagados em até 30 dias.</span>
+          </div>
+        </sc-if>
+      </section>
+      <section style="display:flex;flex-direction:column;gap:10px;padding-top:24px;border-top:1px solid #ECE6DD">
+        <h2 style="margin:0;font:700 22px/1.2 'Plus Jakarta Sans',sans-serif">Por e-mail</h2>
+        <p style="margin:0;font:400 16px/1.7 'Plus Jakarta Sans',sans-serif;color:#4F4841">Mande "Excluir meus dados" com seu @ para <a href="mailto:privacidade@manochat.app">privacidade@manochat.app</a>.</p>
+      </section>
+    </sc-if>
+  </article>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state={user:'',email:'',sent:false,sending:false,err:''};
+  renderVals(){
+    const s=this.state,k=this.props.kind??'privacy';
+    return {isPrivacy:k==='privacy',isDeletion:k==='deletion',user:s.user,email:s.email,sent:s.sent,notSent:!s.sent,err:s.err,
+      submitLabel:s.sending?'Enviando…':'Pedir exclusão dos meus dados',
+      setUser:e=>this.setState({user:e.target.value,err:''}),setEmail:e=>this.setState({email:e.target.value,err:''}),
+      back:()=>this.props.onBack&&this.props.onBack(),
+      submit:()=>{
+        if(!s.user.trim()) return this.setState({err:'Informe seu @ do Instagram.'});
+        if(!/^\S+@\S+\.\S+$/.test(s.email)) return this.setState({err:'Esse e-mail parece incompleto.'});
+        this.setState({sending:true});setTimeout(()=>this.setState({sending:false,sent:true}),900);
+      }};
+  }
+}
+</script>
+</body>
+</html>

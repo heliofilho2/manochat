@@ -172,14 +172,18 @@ async function unlock(acct: Account, automationId: string, igsid: string, at: Da
   if (!rule) return;
 
   const token = accessTokenFor(acct);
-  const isFollower = await getUserFollowsBusiness(token, igsid);
-  await db
-    .update(contact)
-    .set({ isFollower, followerCheckedAt: new Date() })
-    .where(eq(contact.id, contactId));
+  // Only ask Meta about following when this automation actually gates on it.
+  let isFollower = true;
+  if (rule.requireFollow) {
+    isFollower = await getUserFollowsBusiness(token, igsid);
+    await db
+      .update(contact)
+      .set({ isFollower, followerCheckedAt: new Date() })
+      .where(eq(contact.id, contactId));
+  }
 
-  const decision = decideUnlock(isFollower);
-  if (decision === "send_link") await addTag(acct.id, contactId, "follower");
+  const decision = decideUnlock(isFollower, rule.requireFollow);
+  if (decision === "send_link" && rule.requireFollow) await addTag(acct.id, contactId, "follower");
 
   // Window guard for every non-private-reply send.
   const [c] = await db

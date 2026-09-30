@@ -6,5 +6,5 @@ export const runtime = "nodejs";
 
 export async function POST() {
   await destroySession();
-  return NextResponse.redirect(`${env.appUrl}/login`, { status: 303 });
+  return NextResponse.redirect(`${env.appUrl}/`, { status: 303 });
 }

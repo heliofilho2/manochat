@@ -4,11 +4,11 @@
  * Pure and dependency-free (like matcher.ts) so every rule that decides
  * "what does a stranger receive, and when" is unit-testable.
  *
- * Flow when `requireFollow` is on:
- *   comment → opener DM with a postback button ("Já sigo")
- *   button tapped → is_user_follow_business check
- *     follower     → link message (optionally with a clickable URL button)
- *     not follower → "follow me first" message with the same button again
+ * Flow when the opener has a button (`requireFollow`, or an opener text):
+ *   comment → opener DM with a postback button
+ *   button tapped → if `requireFollow`, is_user_follow_business check
+ *     follower (or no gate) → link message (optionally with a URL button)
+ *     not follower          → "follow me first" message, same button again
  */
 
 import { renderDm } from "./matcher";
@@ -81,9 +81,18 @@ export function buildLinkMessage(rule: FlowRule): OutboundMessage {
   return { text: renderDm(rule.dmText, rule.dmLink) };
 }
 
+/**
+ * Whether the first DM carries a button. The follow gate needs one; so does
+ * any automation that has an opener text (the editor always writes one), in
+ * which case the tap simply releases the link without a follow check.
+ */
+export function usesOpenerButton(rule: FlowRule): boolean {
+  return rule.requireFollow || Boolean(rule.openerText);
+}
+
 /** The first DM, sent as the private reply to the comment. */
 export function buildOpener(rule: FlowRule): OutboundMessage {
-  if (rule.requireFollow) {
+  if (usesOpenerButton(rule)) {
     return withButtons(rule.openerText || DEFAULT_OPENER, [followButton(rule)]);
   }
   return buildLinkMessage(rule);
@@ -95,8 +104,8 @@ export function buildNotFollower(rule: FlowRule): OutboundMessage {
 
 export type UnlockDecision = "send_link" | "ask_follow";
 
-export function decideUnlock(isFollower: boolean): UnlockDecision {
-  return isFollower ? "send_link" : "ask_follow";
+export function decideUnlock(isFollower: boolean, requireFollow = true): UnlockDecision {
+  return !requireFollow || isFollower ? "send_link" : "ask_follow";
 }
 
 /** Whether a free-form (non private-reply) DM is allowed right now. */

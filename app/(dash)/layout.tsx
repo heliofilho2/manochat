@@ -1,55 +1,57 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
+import { and, eq, gt, sql } from "drizzle-orm";
+import { automation, conversation, db } from "@/db";
 import { getAccountById } from "@/lib/account";
+import { env } from "@/lib/env";
+import { initialsOf } from "@/lib/format";
 import { getSession } from "@/lib/session";
-import { NavLink } from "./nav-link";
+import { nowMs } from "@/lib/time";
+import { AppShell } from "@/components/app-shell";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardLayout({ children }: LayoutProps<"/">) {
   const session = await getSession();
-  if (!session) redirect("/login");
+  if (!session) redirect("/");
 
   const account = await getAccountById(session.accountId);
-  if (!account) redirect("/login");
+  if (!account) redirect("/");
+
+  const now = nowMs();
+  const dayAgo = new Date(now - 24 * 60 * 60 * 1000);
+  const [[autos], [inbox]] = await Promise.all([
+    db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(automation)
+      .where(eq(automation.accountId, account.id)),
+    // "New" = threads whose latest message is from the other person, within 24h.
+    db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(conversation)
+      .where(
+        and(
+          eq(conversation.accountId, account.id),
+          gt(conversation.lastMessageAt, dayAgo),
+          sql`(select is_from_account from message
+               where message.conversation_id = ${conversation.id}
+               order by message.sent_at desc nulls last limit 1) = false`,
+        ),
+      ),
+  ]);
 
   return (
-    <div className="min-h-dvh">
-      <header className="border-b border-line bg-surface">
-        <div className="mx-auto flex max-w-5xl items-center gap-6 px-6 py-3">
-          <Link href="/automations" className="text-sm font-semibold tracking-tight">
-            Manochat
-          </Link>
-
-          <nav className="flex items-center gap-1">
-            <NavLink href="/dashboard">Dashboard</NavLink>
-            <NavLink href="/automations">Automations</NavLink>
-            <NavLink href="/inbox">Inbox</NavLink>
-          </nav>
-
-          <div className="ml-auto flex items-center gap-3">
-            {!account.webhookSubscribed ? (
-              <span
-                className="rounded-full bg-warn-soft px-2.5 py-1 text-xs font-medium text-warn"
-                title="Comment events will not reach this app until webhooks are subscribed in the Meta dashboard."
-              >
-                Webhooks not subscribed
-              </span>
-            ) : null}
-            <span className="text-sm text-muted">@{account.username}</span>
-            <form action="/api/auth/logout" method="post">
-              <button
-                type="submit"
-                className="text-sm text-muted transition hover:text-ink"
-              >
-                Log out
-              </button>
-            </form>
-          </div>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-5xl px-6 py-8">{children}</main>
-    </div>
+    <AppShell
+      account={{
+        username: account.username,
+        initials: initialsOf(account.username),
+        avatarUrl: account.profilePictureUrl,
+        expired: account.tokenExpiresAt.getTime() < now,
+        hasAutomations: (autos?.n ?? 0) > 0,
+        inboxBadge: inbox?.n ?? 0,
+      }}
+      publicUrl={`${env.appUrl}/u/${account.username}`}
+    >
+      {children}
+    </AppShell>
   );
 }

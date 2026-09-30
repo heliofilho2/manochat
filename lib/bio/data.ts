@@ -1,16 +1,18 @@
 import "server-only";
 import { and, desc, eq } from "drizzle-orm";
-import { account, automation, db, igPost } from "@/db";
+import { account, automation, bioConfig, db, igPost } from "@/db";
 import { accessTokenFor } from "@/lib/account";
 import { getFollowersCount, getMedia } from "@/lib/instagram/client";
-import { buildLinks, isStale } from "./links";
+import { toPostView } from "@/lib/posts-view";
+import { isStale } from "./links";
+import { buildItems, DEFAULT_BIO, safeUrl, type BioSettings } from "./theme";
 
 /**
- * Refreshes follower count and recent media for the public page. Lazy on
- * purpose: visitors are the trigger, so no cron is needed and idle accounts
- * cost nothing. Failures keep the previous cache.
+ * Refreshes follower count and recent media. Lazy on purpose: whoever opens
+ * the page is the trigger, so no cron is needed and idle accounts cost
+ * nothing. Failures keep the previous cache.
  */
-async function refresh(acct: typeof account.$inferSelect) {
+export async function refresh(acct: typeof account.$inferSelect) {
   const token = accessTokenFor(acct);
   // Stamp first so a burst of visitors doesn't fan out N refreshes.
   await db.update(account).set({ followersSyncedAt: new Date() }).where(eq(account.id, acct.id));
@@ -24,7 +26,7 @@ async function refresh(acct: typeof account.$inferSelect) {
     console.error("[bio] followers refresh failed", e);
   }
   try {
-    const { data } = await getMedia(token, 12);
+    const { data } = await getMedia(token, 30);
     for (const m of data ?? []) {
       const values = {
         id: m.id,
@@ -44,30 +46,65 @@ async function refresh(acct: typeof account.$inferSelect) {
   }
 }
 
-export async function loadBio(username: string) {
+export async function loadBioSettings(accountId: string): Promise<BioSettings> {
+  const [row] = await db.select().from(bioConfig).where(eq(bioConfig.accountId, accountId)).limit(1);
+  if (!row) return DEFAULT_BIO;
+  return {
+    theme: row.theme,
+    shape: row.shape,
+    bio: row.bio,
+    photo: row.photo,
+    showFollowers: row.showFollowers,
+    showPosts: row.showPosts,
+    postLayout: row.postLayout,
+    order: row.order,
+    hidden: row.hidden,
+    manual: row.manual,
+  };
+}
+
+export async function loadActiveAutomations(accountId: string) {
+  return db
+    .select({
+      id: automation.id,
+      name: automation.name,
+      keywords: automation.keywords,
+      scope: automation.scope,
+      postIds: automation.postIds,
+    })
+    .from(automation)
+    .where(and(eq(automation.accountId, accountId), eq(automation.status, "live")));
+}
+
+export async function loadRecentPosts(accountId: string, limit: number) {
+  const rows = await db
+    .select()
+    .from(igPost)
+    .where(eq(igPost.accountId, accountId))
+    .orderBy(desc(igPost.timestamp))
+    .limit(limit);
+  return rows.map(toPostView);
+}
+
+/** Everything the public /u/[username] page renders. */
+export async function loadPublicBio(username: string) {
   const [acct] = await db.select().from(account).where(eq(account.username, username)).limit(1);
   if (!acct) return null;
 
   if (isStale(acct.followersSyncedAt)) await refresh(acct);
 
-  const [automations, posts] = await Promise.all([
-    db
-      .select()
-      .from(automation)
-      .where(and(eq(automation.accountId, acct.id), eq(automation.status, "live"))),
-    db
-      .select()
-      .from(igPost)
-      .where(eq(igPost.accountId, acct.id))
-      .orderBy(desc(igPost.timestamp))
-      .limit(6),
+  const [settings, autos, posts] = await Promise.all([
+    loadBioSettings(acct.id),
+    loadActiveAutomations(acct.id),
+    loadRecentPosts(acct.id, 30),
   ]);
 
-  return {
-    username: acct.username,
-    avatar: acct.profilePictureUrl,
-    followers: acct.followersCount,
-    links: buildLinks(automations),
-    posts: posts.filter((p) => p.permalink),
+  // Manual links without a usable URL would be dead buttons; leave them out.
+  const usable: BioSettings = {
+    ...settings,
+    manual: settings.manual.filter((m) => m.label.trim() && safeUrl(m.url)),
   };
+  const items = buildItems(usable, autos).filter((i) => !i.hidden);
+
+  return { acct, settings: usable, items, posts };
 }

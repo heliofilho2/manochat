@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 
 function fail(reason: string) {
   return NextResponse.redirect(
-    `${env.appUrl}/login?error=${encodeURIComponent(reason)}`,
+    `${env.appUrl}/?error=${encodeURIComponent(reason)}`,
   );
 }
 
@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
       .returning({ id: account.id });
 
     await createSession(row.id);
-    return NextResponse.redirect(`${env.appUrl}/automations`);
+    return NextResponse.redirect(`${env.appUrl}/painel`);
   } catch (error) {
     console.error("[auth] login failed", error);
     return fail(error instanceof Error ? error.message : "Login failed.");

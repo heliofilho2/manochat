@@ -26,6 +26,16 @@ describe("flow messages", () => {
     expect(buildOpener(rule)).toEqual({ text: "Aqui: https://exemplo.com" });
   });
 
+  it("an opener text adds the button even without the follow gate", () => {
+    const msg = buildOpener({ ...rule, openerText: "Toca aqui" });
+    const json = JSON.stringify(msg);
+    expect(json).toContain(unlockPayload("auto-1"));
+    expect(json).not.toContain("exemplo.com");
+    // ...and the tap releases the link with no follow check.
+    expect(decideUnlock(false, false)).toBe("send_link");
+    expect(decideUnlock(false, true)).toBe("ask_follow");
+  });
+
   it("follow gate opener has only a postback button and never leaks the link", () => {
     const msg = buildOpener({ ...rule, requireFollow: true });
     const json = JSON.stringify(msg);

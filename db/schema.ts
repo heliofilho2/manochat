@@ -313,3 +313,37 @@ export const linkClick = pgTable(
   },
   (t) => [index("link_click_account_time_idx").on(t.accountId, t.createdAt)],
 );
+
+/* ────────────────────────────────────────────────────────────────────────
+ * Link-in-bio page settings, one row per account. `order`, `hidden` and
+ * `manual` hold ids: automation ids for the automatic buttons, "m<n>" ids
+ * for manual links. `photo` is a small (240px) JPEG data URL.
+ * ──────────────────────────────────────────────────────────────────────── */
+export const bioConfig = pgTable("bio_config", {
+  accountId: uuid("account_id")
+    .primaryKey()
+    .references(() => account.id, { onDelete: "cascade" }),
+  theme: text("theme").notNull().default("papel"),
+  shape: text("shape").notNull().default("arredondado"),
+  bio: text("bio").notNull().default(""),
+  photo: text("photo"),
+  showFollowers: boolean("show_followers").notNull().default(true),
+  showPosts: boolean("show_posts").notNull().default(true),
+  postLayout: text("post_layout").notNull().default("grid3"),
+  order: jsonb("order").$type<string[]>().notNull().default([]),
+  hidden: jsonb("hidden").$type<string[]>().notNull().default([]),
+  manual: jsonb("manual")
+    .$type<{ id: string; label: string; url: string }[]>()
+    .notNull()
+    .default([]),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/* Requests submitted on the public data-deletion page. Handled manually. */
+export const deletionRequest = pgTable("deletion_request", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  protocol: text("protocol").notNull().unique(),
+  igUsername: text("ig_username").notNull(),
+  email: text("email").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});

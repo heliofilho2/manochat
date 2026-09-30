@@ -1,35 +1,14 @@
 /** Pure link-in-bio helpers: no network, no DB, unit-testable. */
 
 export interface BioAutomation {
-  id: string;
-  name: string;
-  keywords: string[];
   scope: string;
   postIds: string[];
-}
-
-export interface BioLink {
-  /** "a-<automationId>", resolved server-side by /r/[id]. */
-  id: string;
-  title: string;
-  hint: string;
 }
 
 export const STALE_MS = 3 * 60 * 60 * 1000;
 
 export function isStale(syncedAt: Date | null | undefined, now = Date.now()): boolean {
   return !syncedAt || now - syncedAt.getTime() > STALE_MS;
-}
-
-/** One button per live automation that has a keyword. */
-export function buildLinks(automations: BioAutomation[]): BioLink[] {
-  return automations
-    .filter((a) => a.keywords.length > 0)
-    .map((a) => ({
-      id: `a-${a.id}`,
-      title: a.name,
-      hint: `Comente “${a.keywords[0].toUpperCase()}” no vídeo e receba na DM`,
-    }));
 }
 
 export function withUtm(url: string): string {
@@ -46,7 +25,7 @@ export function withUtm(url: string): string {
  * so the redirect route cannot be used as an open redirect.
  */
 export function destinationFor(
-  a: Pick<BioAutomation, "scope" | "postIds">,
+  a: BioAutomation,
   permalinks: Map<string, string | null>,
   username: string,
 ): string {
@@ -55,11 +34,4 @@ export function destinationFor(
     if (link) return link;
   }
   return `https://www.instagram.com/${encodeURIComponent(username)}/`;
-}
-
-export function formatFollowers(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")} mi`;
-  if (n >= 10_000) return `${Math.round(n / 1000)} mil`;
-  if (n >= 1000) return `${(n / 1000).toFixed(1).replace(/\.0$/, "")} mil`;
-  return String(n);
 }
