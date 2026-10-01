@@ -15,7 +15,7 @@ export interface Issue {
 
 export interface HealthInput {
   now: number;
-  /** Events that went `dead` in the last 24h. */
+  /** Events that ended `dead` or `failed` in the last 24h. */
   dead: { error: string | null }[];
   /** Events still pending/failed well after they should have been swept. */
   stuck: { count: number; oldestAt: number | null };
@@ -36,6 +36,9 @@ const EXPECTED = [
   /comment.*(deleted|not found)/i,
 ];
 
+/** Meta says this when the token expired, was revoked or the password changed. */
+const TOKEN_INVALID = /validating access token|session has been invalidated|access token.*(expired|invalid)/i;
+
 export function isExpectedFailure(message: string | null): boolean {
   return message !== null && EXPECTED.some((r) => r.test(message));
 }
@@ -43,7 +46,18 @@ export function isExpectedFailure(message: string | null): boolean {
 export function evaluateHealth(i: HealthInput): Issue[] {
   const issues: Issue[] = [];
 
-  const real = i.dead.filter((d) => !isExpectedFailure(d.error));
+  const tokenErrors = i.dead.filter((d) => d.error !== null && TOKEN_INVALID.test(d.error));
+  if (tokenErrors.length > 0) {
+    issues.push({
+      key: "token-invalid",
+      severity: "error",
+      title: `O Instagram invalidou a conexão: ${tokenErrors.length} evento(s) não foram enviados`,
+      detail:
+        "Entre no painel e reconecte o Instagram (Entrar com Instagram). Depois disso os envios pendentes voltam a ser tentados.",
+    });
+  }
+
+  const real = i.dead.filter((d) => !isExpectedFailure(d.error) && !tokenErrors.includes(d));
   if (real.length > 0) {
     const sample = real.find((d) => d.error)?.error ?? "sem detalhe";
     issues.push({

@@ -32,6 +32,16 @@ describe("evaluateHealth", () => {
     expect(loud[0].detail).toContain("Invalid OAuth");
   });
 
+  it("calls out an invalidated token separately, with a clear fix", () => {
+    const msg =
+      "Error validating access token: The session has been invalidated because the user changed their password";
+    const out = evaluateHealth({ ...base, dead: [{ error: msg }, { error: msg }] });
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ key: "token-invalid", severity: "error" });
+    expect(out[0].title).toContain("2 evento");
+    expect(out[0].detail).toContain("reconecte");
+  });
+
   it("flags events stuck for a long time", () => {
     const out = evaluateHealth({ ...base, stuck: { count: 3, oldestAt: NOW - 45 * 60_000 } });
     expect(out[0]).toMatchObject({ key: "stuck", severity: "error" });

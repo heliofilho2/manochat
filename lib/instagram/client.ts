@@ -19,11 +19,18 @@ export class InstagramApiError extends Error {
     this.name = "InstagramApiError";
   }
 
+  /** Meta code 190: the access token expired or the session was invalidated. */
+  get isTokenInvalid(): boolean {
+    return this.code === 190;
+  }
+
   /**
    * True when retrying is pointless: the comment was deleted, the 7-day
    * private-reply window closed, or we already replied to this comment.
    */
   get isPermanent(): boolean {
+    // An invalid token fixes itself once the owner reconnects: keep the event.
+    if (this.isTokenInvalid) return false;
     if (this.status === 400 || this.status === 403) return true;
     // 10 = permission denied, 100 = invalid parameter, 200 = permissions error.
     return this.code === 10 || this.code === 100 || this.code === 200;

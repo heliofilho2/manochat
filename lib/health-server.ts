@@ -14,7 +14,7 @@ export async function collectHealthInput(igUserId?: string): Promise<HealthInput
     db
       .select({ error: webhookEvent.lastError })
       .from(webhookEvent)
-      .where(and(sql`${webhookEvent.status} = 'dead'`, gt(webhookEvent.processedAt, new Date(now - 24 * 3600_000)), mine))
+      .where(and(inArray(webhookEvent.status, ["dead", "failed"]), gt(webhookEvent.processedAt, new Date(now - 24 * 3600_000)), mine))
       .limit(200),
     db
       .select({ at: webhookEvent.receivedAt })
@@ -78,7 +78,11 @@ export async function runHealthCheck(): Promise<{ issues: number; alerted: numbe
     if (fresh.length > 0) {
       const host = process.env.APP_URL ?? "Manochat";
       const lines = fresh.map((i) => `${i.severity === "error" ? "🔴" : "🟡"} ${i.title}\n${i.detail}`);
-      await post(`Manochat (${host})\n\n${lines.join("\n\n")}`);
+      // One tap from the phone: the login link, when the fix is "reconnect".
+      const reconnect = fresh.some((i) => i.key === "token-invalid" || i.key.startsWith("token:"))
+        ? `\n\nReconectar agora: ${host}/api/auth/instagram`
+        : "";
+      await post(`Manochat (${host})\n\n${lines.join("\n\n")}${reconnect}`);
     }
     return { issues: issues.length, alerted: fresh.length };
   } catch (error) {

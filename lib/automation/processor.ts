@@ -93,7 +93,10 @@ export async function processEvent(eventId: string): Promise<void> {
     const reason = error instanceof Error ? error.message : String(error);
     const permanent =
       error instanceof InstagramApiError ? error.isPermanent : false;
-    const exhausted = event.attempts + 1 >= MAX_ATTEMPTS;
+    // A dead token is the owner's to fix (reconnect); keep retrying until the
+    // 7-day window closes instead of burning the attempts in a few minutes.
+    const tokenInvalid = error instanceof InstagramApiError && error.isTokenInvalid;
+    const exhausted = !tokenInvalid && event.attempts + 1 >= MAX_ATTEMPTS;
 
     await markEvent(eventId, permanent || exhausted ? "dead" : "failed", reason);
   }
@@ -324,8 +327,25 @@ async function handleComment(acct: Account, value: CommentValue) {
     .onConflictDoNothing({ target: commentEvent.commentId })
     .returning({ id: commentEvent.id });
 
-  if (claimed.length === 0) return; // Already handled.
-  const rowId = claimed[0].id;
+  let rowId: string;
+  let replyDone = false;
+  if (claimed.length > 0) {
+    rowId = claimed[0].id;
+  } else {
+    /*
+     * Already seen. Normally that means "done", but a DM that failed (for
+     * instance a dead token) must be retried by the sweeper. Flipping
+     * failed → pending is atomic, so only one attempt can win it.
+     */
+    const [retry] = await db
+      .update(commentEvent)
+      .set({ dmStatus: "pending", dmError: null })
+      .where(and(eq(commentEvent.commentId, value.id), eq(commentEvent.dmStatus, "failed")))
+      .returning({ id: commentEvent.id, replyStatus: commentEvent.replyStatus });
+    if (!retry) return; // Sent, or another attempt is already on it.
+    rowId = retry.id;
+    replyDone = retry.replyStatus !== "failed" && retry.replyStatus !== "pending";
+  }
 
   // Contact + tags. Non-critical: never let CRM bookkeeping block the DM.
   try {
@@ -344,7 +364,7 @@ async function handleComment(acct: Account, value: CommentValue) {
 
   // Public reply. A failure here must not block the DM — the DM is the part
   // the commenter actually asked for.
-  if (rule.replyEnabled) {
+  if (rule.replyEnabled && !replyDone) {
     const replyText = pickReply(rule.replyVariants);
     if (!replyText) {
       await db
