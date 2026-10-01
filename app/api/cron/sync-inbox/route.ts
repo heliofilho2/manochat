@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { account, conversation, db, igPost, message } from "@/db";
 import { accessTokenFor, type Account } from "@/lib/account";
 import { isAuthorizedCron } from "@/lib/cron-auth";
@@ -23,12 +23,16 @@ export async function GET(request: NextRequest) {
   const accounts = await db.select().from(account);
   if (accounts.length === 0) return NextResponse.json({ skipped: "no account connected" });
 
+  // Answer right away (cron-job.org gives up after 30 s); sync after the response.
   // One account failing must never starve the others.
-  const results = [];
-  for (const acct of accounts) {
-    results.push(await syncAccount(acct));
-  }
-  return NextResponse.json({ accounts: results });
+  after(async () => {
+    const results = [];
+    for (const acct of accounts) {
+      results.push(await syncAccount(acct));
+    }
+    console.log("[cron] sync-inbox", results);
+  });
+  return NextResponse.json({ accounts: accounts.length, started: true });
 }
 
 async function syncAccount(acct: Account) {
@@ -65,19 +69,18 @@ async function syncAccount(acct: Account) {
         });
       threads++;
 
-      for (const m of recent) {
-        await db
-          .insert(message)
-          .values({
-            id: m.id,
-            conversationId: thread.id,
-            fromIgId: m.from?.id ?? null,
-            isFromAccount: m.from?.id === acct.igUserId,
-            text: m.message ?? null,
-            sentAt: m.created_time ? new Date(m.created_time) : null,
-          })
-          .onConflictDoNothing({ target: message.id });
-        messages++;
+      // One insert per thread instead of one per message: far fewer round trips.
+      const rows = recent.map((m) => ({
+        id: m.id,
+        conversationId: thread.id,
+        fromIgId: m.from?.id ?? null,
+        isFromAccount: m.from?.id === acct.igUserId,
+        text: m.message ?? null,
+        sentAt: m.created_time ? new Date(m.created_time) : null,
+      }));
+      if (rows.length > 0) {
+        await db.insert(message).values(rows).onConflictDoNothing({ target: message.id });
+        messages += rows.length;
       }
     }
   } catch (error) {

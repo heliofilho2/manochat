@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { inArray, lt, or, and, sql } from "drizzle-orm";
 import { db, webhookEvent } from "@/db";
 import { processEvent } from "@/lib/automation/processor";
@@ -44,23 +44,28 @@ export async function GET(request: NextRequest) {
     .orderBy(sql`${webhookEvent.receivedAt} asc`)
     .limit(BATCH);
 
-  let processed = 0;
-  const startedAt = Date.now();
-  for (const row of pending) {
-    // Stop before the function limit; what is left is picked up on the next tick.
-    if (Date.now() - startedAt > TIME_BUDGET_MS) break;
-    try {
-      await processEvent(row.id);
-      processed++;
-    } catch (error) {
-      console.error("[cron] event failed", row.id, error);
+  // Answer right away: external schedulers (cron-job.org) give up after 30 s.
+  // The sweep itself runs after the response, within the function time limit.
+  after(async () => {
+    let processed = 0;
+    const startedAt = Date.now();
+    for (const row of pending) {
+      // Stop before the function limit; what is left is picked up on the next tick.
+      if (Date.now() - startedAt > TIME_BUDGET_MS) break;
+      try {
+        await processEvent(row.id);
+        processed++;
+      } catch (error) {
+        console.error("[cron] event failed", row.id, error);
+      }
+      // Instagram allows 2 messaging calls/second per account.
+      await new Promise((resolve) => setTimeout(resolve, 550));
     }
-    // Instagram allows 2 messaging calls/second per account.
-    await new Promise((resolve) => setTimeout(resolve, 550));
-  }
 
-  // Every sweep doubles as the health check (alerts are rate-limited per issue).
-  const health = await runHealthCheck();
+    // Every sweep doubles as the health check (alerts are rate-limited per issue).
+    const health = await runHealthCheck();
+    console.log("[cron] process-events", { found: pending.length, processed, health });
+  });
 
-  return NextResponse.json({ found: pending.length, processed, health });
+  return NextResponse.json({ found: pending.length, started: true });
 }
