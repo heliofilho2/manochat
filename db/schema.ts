@@ -396,3 +396,12 @@ export const lead = pgTable(
   },
   (t) => [index("lead_account_created_idx").on(t.accountId, t.createdAt)],
 );
+
+/* ────────────────────────────────────────────────────────────────────────
+ * Alert log — when each kind of alert was last sent, so a problem that
+ * persists pings once per cooldown instead of on every cron tick.
+ * ──────────────────────────────────────────────────────────────────────── */
+export const alertLog = pgTable("alert_log", {
+  key: text("key").primaryKey(),
+  sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
+});

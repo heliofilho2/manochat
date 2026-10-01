@@ -241,6 +241,16 @@ O app precisa de três rotinas, todas chamadas com `Authorization: Bearer <CRON_
 - **Vercel Pro:** basta adicionar as rotas em `vercel.json`. Na Hobby só o diário é permitido; por
   isso `refresh-token` já vem em `vercel.json`.
 
+#### Alertas de falha
+A cada execução do `process-events`, o app confere a saúde da instalação e avisa se houver:
+- eventos que falharam de vez por motivo real (não conta conversa apagada nem janela de 7 dias vencida);
+- eventos parados há mais de 30 minutos (sinal de que o cron parou);
+- token do Instagram vencendo em até 7 dias (ou já vencido).
+
+Defina `ALERT_WEBHOOK_URL` (Discord, Slack ou ntfy.sh) para receber a mensagem; cada problema avisa no
+máximo a cada 3 h (erros) ou 24 h (avisos). Sem a variável, o aviso aparece só no **Painel**.
+Ative também a notificação de falha do próprio cron-job.org, que cobre o caso de o cron inteiro parar.
+
 ### Passo 10 — Use
 1. Abra `https://seu-app.vercel.app` e clique em **Entrar com Instagram**.
 2. **Automações → Nova automação**: palavra-chave, posts, mensagens e link.
@@ -274,6 +284,7 @@ O app precisa de três rotinas, todas chamadas com `Authorization: Bearer <CRON_
 | `DATABASE_URL` | sim | Passo 3 (string *pooled* do Neon) |
 | `APP_URL` | sim | `http://localhost:3000` localmente; sua URL pública em produção, sem `/` final |
 | `NEXT_PUBLIC_PRIVACY_EMAIL` | não | E-mail exibido nas páginas de privacidade e exclusão de dados |
+| `ALERT_WEBHOOK_URL` | não | Webhook do Discord/Slack ou tópico do [ntfy.sh](https://ntfy.sh) que recebe [alertas de falha](#alertas-de-falha) |
 | `LEADS_WEBHOOK_SECRET` | não | Se definido, é enviado como `Authorization: Bearer` ao seu webhook de leads |
 
 ---

@@ -9,6 +9,7 @@ import { fmt, formatFollowers } from "@/lib/format";
 import { fetchMediaMetrics } from "@/lib/insights/fetch";
 import { computeInsights, type Insights } from "@/lib/insights/insights";
 import { bestCombo, rankings } from "@/lib/insights/labels";
+import { getHealth } from "@/lib/health-server";
 import { getSession } from "@/lib/session";
 import { nowMs } from "@/lib/time";
 import { IconChart, IconLock } from "@/components/icons";
@@ -62,7 +63,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/painel
   // Follower count is cached; top it up here too so it is never blank.
   if (isStale(acct.followersSyncedAt)) await refresh(acct);
 
-  const [[totals], [autos], tagRows, convRows, [dmStats], [clicks]] = await Promise.all([
+  const [[totals], [autos], tagRows, convRows, [dmStats], [clicks], healthIssues] = await Promise.all([
     db
       .select({
         contacts: sql<number>`count(*)::int`,
@@ -99,6 +100,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/painel
       .select({ n: sql<number>`count(*)::int` })
       .from(linkClick)
       .where(and(eq(linkClick.accountId, accountId), gt(linkClick.createdAt, since))),
+    getHealth(acct.igUserId).catch(() => []),
   ]);
 
   const conversions = new Map<string, number>();
@@ -191,6 +193,18 @@ export default async function DashboardPage({ searchParams }: PageProps<"/painel
           ))}
         </div>
       </div>
+
+      {healthIssues.length > 0 ? (
+        <div role="alert" className="flex flex-col gap-2 rounded-[18px] bg-danger-bg p-[18px] text-danger-ink">
+          <strong className="text-base font-bold">Atenção: a integração precisa de cuidado</strong>
+          {healthIssues.map((i) => (
+            <div key={i.key} className="flex flex-col gap-0.5 text-sm leading-normal">
+              <span className="font-semibold">{i.title}</span>
+              <span className="opacity-85">{i.detail}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
 
       {empty ? (
         <div className="flex flex-col items-start gap-3.5 rounded-[22px] border border-dashed border-line-strong bg-white p-[clamp(24px,5vw,48px)]">

@@ -43,6 +43,13 @@
       "when": 1790770179057,
       "tag": "0005_bio_style",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790852826092,
+      "tag": "0006_alert_log",
+      "breakpoints": true
     }
   ]
 }
