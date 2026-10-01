@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { and, eq, gt, sql } from "drizzle-orm";
-import { automation, commentEvent, contact, contactTag, db, linkClick, tag, tapEvent } from "@/db";
+import { automation, commentEvent, contact, contactTag, db, linkClick, tag } from "@/db";
 import { accessTokenFor, getAccountById } from "@/lib/account";
 import { refresh } from "@/lib/bio/data";
 import { isStale } from "@/lib/bio/links";
@@ -13,9 +13,7 @@ import { getHealth } from "@/lib/health-server";
 import { getSession } from "@/lib/session";
 import { nowMs } from "@/lib/time";
 import { IconChart, IconLock } from "@/components/icons";
-import { buildAutomationFunnel } from "@/lib/insights/automation-funnel";
 import { RankingCard } from "./ranking-card";
-import { AutomationFunnel } from "./automation-funnel";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Painel — Manochat" };
@@ -65,8 +63,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/painel
   // Follower count is cached; top it up here too so it is never blank.
   if (isStale(acct.followersSyncedAt)) await refresh(acct);
 
-  const [[totals], [autos], tagRows, convRows, [dmStats], [clicks], healthIssues, autoRows, entryRows, tapRows] =
-    await Promise.all([
+  const [[totals], [autos], tagRows, convRows, [dmStats], [clicks], healthIssues] = await Promise.all([
     db
       .select({
         contacts: sql<number>`count(*)::int`,
@@ -104,46 +101,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/painel
       .from(linkClick)
       .where(and(eq(linkClick.accountId, accountId), gt(linkClick.createdAt, since))),
     getHealth(acct.igUserId).catch(() => []),
-    db
-      .select({
-        id: automation.id,
-        name: automation.name,
-        kind: automation.kind,
-        requireFollow: automation.requireFollow,
-        openerText: automation.openerText,
-      })
-      .from(automation)
-      .where(eq(automation.accountId, accountId)),
-    db
-      .select({
-        automationId: commentEvent.automationId,
-        entries: sql<number>`count(*)::int`,
-        sent: sql<number>`count(*) filter (where ${commentEvent.dmStatus} = 'sent')::int`,
-      })
-      .from(commentEvent)
-      .where(and(eq(commentEvent.accountId, accountId), gt(commentEvent.createdAt, since)))
-      .groupBy(commentEvent.automationId),
-    db
-      .select({
-        automationId: tapEvent.automationId,
-        taps: sql<number>`count(*)::int`,
-        linkSent: sql<number>`count(*) filter (where ${tapEvent.outcome} = 'link_sent')::int`,
-      })
-      .from(tapEvent)
-      .where(and(eq(tapEvent.accountId, accountId), gt(tapEvent.createdAt, since)))
-      .groupBy(tapEvent.automationId),
   ]);
-
-  const perAutomation = buildAutomationFunnel(
-    autoRows.map((a) => ({
-      id: a.id,
-      name: a.name,
-      kind: a.kind === "story" ? "story" : "comment",
-      gated: a.requireFollow || Boolean(a.openerText),
-    })),
-    entryRows.flatMap((r) => (r.automationId ? [{ automationId: r.automationId, entries: r.entries, sent: r.sent }] : [])),
-    tapRows.flatMap((r) => (r.automationId ? [{ automationId: r.automationId, taps: r.taps, linkSent: r.linkSent }] : [])),
-  );
 
   const conversions = new Map<string, number>();
   for (const r of convRows) if (r.mediaId) conversions.set(r.mediaId, r.n);
@@ -217,7 +175,15 @@ export default async function DashboardPage({ searchParams }: PageProps<"/painel
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-col gap-1.5">
           <h1 className="m-0 text-[clamp(30px,4.5vw,42px)] leading-[1.02] font-bold tracking-[-0.025em]">Painel</h1>
-          <span className="text-[15px] text-muted">Como suas automações estão indo.</span>
+          <span className="text-[15px] text-muted">
+            Como suas automações estão indo.{" "}
+            <Link
+              href={`/painel/automacoes?dias=${days}`}
+              className="font-semibold text-ink underline underline-offset-[3px]"
+            >
+              Ver por automação →
+            </Link>
+          </span>
         </div>
         <div role="tablist" className="flex gap-0.5 rounded-xl bg-fill p-1">
           {PERIODS.map((p) => (
@@ -296,8 +262,6 @@ export default async function DashboardPage({ searchParams }: PageProps<"/painel
               <Kpi key={k.label} {...k} highlight={i === 3} delay={`${i * 60}ms`} />
             ))}
           </div>
-
-          <AutomationFunnel rows={perAutomation} days={days} />
 
           <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,440px),1fr))] items-start gap-4">
             <RankingCard

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { BioPage } from "@/components/bio-page";
 import { FONT_LABELS } from "@/components/bio-fonts";
+import { ScaledPhone } from "@/components/scaled-phone";
 import { SocialIcon } from "@/components/social-icons";
 import { Switch } from "@/components/switch";
 import { useToast } from "@/components/toast";
@@ -322,17 +323,20 @@ export function BioEditor({
       <div className="relative h-[min(720px,calc(100vh-80px))] w-[340px] max-w-[calc(100vw-32px)] overflow-hidden rounded-[48px] border-[11px] border-ink bg-ink shadow-phone">
         <span className="absolute top-2 left-1/2 z-[3] h-[26px] w-[92px] -translate-x-1/2 rounded-full bg-ink" />
         <div className="scrollbar-none absolute inset-0 overflow-x-hidden overflow-y-auto rounded-[37px]">
-          <BioPage
-            username={username}
-            initials={initials}
-            profilePicture={profilePicture}
-            followers={followers}
-            settings={s}
-            items={visible}
-            posts={posts}
-            accountId={null}
-            framed
-          />
+          {/* Frame is 340px wide with an 11px border: 318px inside. */}
+          <ScaledPhone innerWidth={318} innerHeight="min(720px, 100vh - 80px) - 22px">
+            <BioPage
+              username={username}
+              initials={initials}
+              profilePicture={profilePicture}
+              followers={followers}
+              settings={s}
+              items={visible}
+              posts={posts}
+              accountId={null}
+              framed
+            />
+          </ScaledPhone>
         </div>
       </div>
       <span className="text-xs text-muted">Como aparece no navegador do Instagram</span>

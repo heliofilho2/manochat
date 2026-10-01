@@ -9,6 +9,26 @@ robô, sem scraping. Roda na **Vercel + Neon** e você pode hospedar a sua próp
 
 > Veja como ele funciona, com as telas reais: **https://manochat.vercel.app/como-funciona**
 
+## Telas
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/prints-readme/lista-automacoes.png" alt="Lista de automações"><br><sub><b>Automações</b>: ativar, pausar e reenviar o link</sub></td>
+    <td width="50%"><img src="docs/prints-readme/escolher-gatilho.png" alt="Escolher o gatilho"><br><sub><b>Gatilho</b>: comentário em post ou resposta a story</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/prints-readme/editor-automacao.png" alt="Editor de automação de comentário"><br><sub><b>Comentário</b>: palavras, posts e mensagens, com a conversa ao lado</sub></td>
+    <td><img src="docs/prints-readme/editor-story.png" alt="Editor de automação de story"><br><sub><b>Story</b>: qualquer story ou um específico, e captura de leads</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/prints-readme/conversa.png" alt="Pré-visualização da conversa" width="320"><br><sub><b>Pré-visualização</b> da DM, com o botão "Já sigo"</sub></td>
+    <td><img src="docs/prints-readme/bio-editor.png" alt="Editor da página de bio"><br><sub><b>Link na bio</b>: temas, fundos, botões e fontes</sub></td>
+  </tr>
+  <tr>
+    <td colspan="2" align="center"><img src="docs/prints-readme/bio-publica.png" alt="Página de bio publicada" width="420"><br><sub><b>Página pública</b> em <code>/u/seu-usuario</code></sub></td>
+  </tr>
+</table>
+
 ---
 
 ## Sumário

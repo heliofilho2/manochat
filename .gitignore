@@ -45,3 +45,6 @@ CLAUDE.md
 AGENTS.md
 # Claude Code local
 .claude/
+
+# Contém @ de pessoas reais: borrar os nomes antes de publicar (e remover esta linha)
+docs/prints-readme/caixa-entrada.png

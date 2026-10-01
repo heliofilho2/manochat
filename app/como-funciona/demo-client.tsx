@@ -7,6 +7,7 @@
  */
 import { useState } from "react";
 import { BioPage } from "@/components/bio-page";
+import { ScaledPhone } from "@/components/scaled-phone";
 import { ConversationPreview } from "@/app/(dash)/automacoes/conversation-preview";
 import { BLANK_DRAFT, BLANK_STORY_DRAFT, type AutomationDraft } from "@/lib/automation/draft";
 import { DEFAULT_EMAIL_PROMPT, DEFAULT_PHONE_PROMPT, DEFAULT_THANKS } from "@/lib/automation/story";
@@ -81,18 +82,21 @@ const BIO: BioSettings = {
 export function DemoBio() {
   return (
     <div className="h-[600px] w-full max-w-[340px] overflow-hidden rounded-[32px] border-[6px] border-ink shadow-float">
-      <div className="h-full overflow-y-auto">
-        <BioPage
-          username="seu.perfil"
-          initials="SP"
-          profilePicture={null}
-          followers={12400}
-          settings={BIO}
-          items={ITEMS}
-          posts={[]}
-          accountId={null}
-          framed
-        />
+      <div className="h-full overflow-y-auto overflow-x-hidden">
+        {/* Frame: 340px wide, 6px border, 600px tall. */}
+        <ScaledPhone innerWidth={328} innerHeight="588px">
+          <BioPage
+            username="seu.perfil"
+            initials="SP"
+            profilePicture={null}
+            followers={12400}
+            settings={BIO}
+            items={ITEMS}
+            posts={[]}
+            accountId={null}
+            framed
+          />
+        </ScaledPhone>
       </div>
     </div>
   );

@@ -11,7 +11,8 @@ import type { PostView } from "@/lib/posts-view";
 
 /**
  * The public link-in-bio page. Also rendered inside the phone frame of the
- * editor (`framed`), where links are inert.
+ * editor (`framed`), where links are inert. `framed` only changes how the height is
+ * filled: sizes are identical, since the editor shows it at a real phone width.
  */
 export function BioPage({
   username,
@@ -58,7 +59,7 @@ export function BioPage({
     .filter((s) => s.link);
 
   const grid = st.button.layout === "grid";
-  const pad = framed ? 20 : 20;
+  const pad = 20;
 
   const avatar = (size: number, ring = true) => (
     <div
@@ -122,7 +123,7 @@ export function BioPage({
         <div
           className="relative w-full overflow-hidden"
           style={{
-            height: framed ? 300 : 400,
+            height: 400,
             background: "#E9C9B4",
             WebkitMaskImage: "linear-gradient(to bottom, black 62%, transparent)",
             maskImage: "linear-gradient(to bottom, black 62%, transparent)",
@@ -149,7 +150,7 @@ export function BioPage({
       <div className="flex flex-col items-center">
         <div
           className="relative w-full overflow-hidden"
-          style={{ height: framed ? 110 : 150, background: r.accent }}
+          style={{ height: 150, background: r.accent }}
         >
           {photo ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -171,7 +172,7 @@ export function BioPage({
     );
   } else if (st.header === "side") {
     header = (
-      <div className="flex flex-col gap-3.5 px-5" style={{ paddingTop: framed ? 36 : 44 }}>
+      <div className="flex flex-col gap-3.5 px-5" style={{ paddingTop: 44 }}>
         <div className="flex items-center gap-4">
           {avatar(76)}
           {nameBlock("left")}
@@ -186,7 +187,7 @@ export function BioPage({
     header = (
       <div
         className="flex flex-col items-center gap-2.5 px-5 text-center"
-        style={{ paddingTop: framed ? 36 : 48 }}
+        style={{ paddingTop: 48 }}
       >
         {avatar(96)}
         {nameBlock("center")}
@@ -205,7 +206,7 @@ export function BioPage({
     <div
       className={`relative overflow-hidden ${r.frame ? (framed ? "px-3 py-4" : "px-3 py-4 sm:py-10") : ""}`}
       style={{
-        minHeight: framed ? "100%" : "100dvh",
+        ...(framed ? { flexGrow: 1 } : { minHeight: "100dvh" }),
         color: r.text,
         fontFamily: `${r.fontVar}, system-ui, sans-serif`,
         ...(r.wallpaper as React.CSSProperties),
