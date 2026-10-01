@@ -1,5 +1,5 @@
 import "server-only";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, lt, or } from "drizzle-orm";
 import {
   automation,
   commentEvent,
@@ -8,6 +8,7 @@ import {
   db,
   lead,
   message,
+  tapEvent,
   webhookEvent,
 } from "@/db";
 import { accessTokenFor, getAccountByIgUserId, type Account } from "@/lib/account";
@@ -54,6 +55,8 @@ import {
 /** Meta refuses private replies to comments older than this. */
 export const PRIVATE_REPLY_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const MAX_ATTEMPTS = 5;
+/** A `pending` DM older than this belonged to a run that died before finishing. */
+const STALE_PENDING_MS = 6 * 60 * 1000;
 
 /**
  * Processes one stored webhook event.
@@ -177,6 +180,17 @@ async function handlePostback(acct: Account, event: MessagingEvent) {
 
   try {
     const outcome = await unlock(acct, automationId, igsid, at);
+    // Funnel bookkeeping. Never lets a stats failure undo a delivered link.
+    await db
+      .insert(tapEvent)
+      .values({
+        accountId: acct.id,
+        automationId: outcome === "no_rule" ? null : automationId,
+        igId: igsid,
+        outcome: outcome === "not_follower" ? "asked_follow" : outcome,
+        createdAt: at,
+      })
+      .catch((e) => console.error("[funnel] tap log failed", e));
     // Keep the decision visible in the inbox (the outbound DM itself has no text stored).
     await db
       .update(message)
@@ -334,13 +348,23 @@ async function handleComment(acct: Account, value: CommentValue) {
   } else {
     /*
      * Already seen. Normally that means "done", but a DM that failed (for
-     * instance a dead token) must be retried by the sweeper. Flipping
-     * failed → pending is atomic, so only one attempt can win it.
+     * instance a dead token), or one left `pending` by a run that was killed
+     * mid-way, must be retried by the sweeper. The status flip is atomic, so
+     * only one attempt can win it.
      */
+    const stalePending = new Date(Date.now() - STALE_PENDING_MS);
     const [retry] = await db
       .update(commentEvent)
       .set({ dmStatus: "pending", dmError: null })
-      .where(and(eq(commentEvent.commentId, value.id), eq(commentEvent.dmStatus, "failed")))
+      .where(
+        and(
+          eq(commentEvent.commentId, value.id),
+          or(
+            eq(commentEvent.dmStatus, "failed"),
+            and(eq(commentEvent.dmStatus, "pending"), lt(commentEvent.createdAt, stalePending)),
+          ),
+        ),
+      )
       .returning({ id: commentEvent.id, replyStatus: commentEvent.replyStatus });
     if (!retry) return; // Sent, or another attempt is already on it.
     rowId = retry.id;

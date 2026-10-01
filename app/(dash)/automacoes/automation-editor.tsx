@@ -817,7 +817,8 @@ export function AutomationEditor({
                 <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,220px),1fr))] gap-2.5">
                   <RadioCard selected={d.target === "all"} onPick={() => up({ target: "all" })} label="Qualquer story">
                     <span className="text-[13px] leading-[1.45] text-ink-2">
-                      Vale para todos os seus stories, agora e nos próximos.
+                      Vale para todos os seus stories, agora e nos próximos. Inclui stories impulsionados
+                      (anúncios).
                     </span>
                   </RadioCard>
                   <RadioCard
@@ -832,6 +833,11 @@ export function AutomationEditor({
                 </div>
                 {d.target === "specific" ? (
                   <div className="flex flex-col gap-3">
+                    <div className="rounded-[14px] bg-warning-bg px-4 py-3 text-[13px] leading-[1.5] text-warning">
+                      <strong className="font-semibold">Vai impulsionar este story?</strong> Um story turbinado vira um
+                      anúncio com outro identificador, e as respostas dele não casam com o story escolhido aqui. Para
+                      pegar também quem responde pelo anúncio, use &quot;Qualquer story&quot;.
+                    </div>
                     <div className="flex items-baseline justify-between gap-3">
                       <span className="text-[15px] font-semibold">Stories no ar agora</span>
                       <span

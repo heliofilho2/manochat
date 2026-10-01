@@ -405,3 +405,23 @@ export const alertLog = pgTable("alert_log", {
   key: text("key").primaryKey(),
   sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/* ────────────────────────────────────────────────────────────────────────
+ * Tap event — one row per tap on an automation's button ("Já sigo ✅"),
+ * with what we did about it. Feeds the per-automation funnel.
+ * ──────────────────────────────────────────────────────────────────────── */
+export const tapEvent = pgTable(
+  "tap_event",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => account.id, { onDelete: "cascade" }),
+    automationId: uuid("automation_id").references(() => automation.id, { onDelete: "cascade" }),
+    igId: text("ig_id").notNull(),
+    /** link_sent | asked_follow | no_rule */
+    outcome: text("outcome").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("tap_event_automation_time_idx").on(t.automationId, t.createdAt)],
+);

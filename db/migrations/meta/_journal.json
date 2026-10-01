@@ -50,6 +50,13 @@
       "when": 1790852826092,
       "tag": "0006_alert_log",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790875434456,
+      "tag": "0007_tap_event",
+      "breakpoints": true
     }
   ]
 }
