@@ -9,7 +9,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const BATCH = 25;
+const BATCH = 12;
+/** Leave headroom under maxDuration for the health check and the response. */
+const TIME_BUDGET_MS = 40_000;
 /** A `processing` row older than this belonged to a crashed run. */
 const STUCK_MS = 5 * 60 * 1000;
 
@@ -43,7 +45,10 @@ export async function GET(request: NextRequest) {
     .limit(BATCH);
 
   let processed = 0;
+  const startedAt = Date.now();
   for (const row of pending) {
+    // Stop before the function limit; what is left is picked up on the next tick.
+    if (Date.now() - startedAt > TIME_BUDGET_MS) break;
     try {
       await processEvent(row.id);
       processed++;

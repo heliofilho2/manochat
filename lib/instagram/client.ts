@@ -45,7 +45,8 @@ async function call<T>(
   const url = new URL(`${BASE}${path}`);
   for (const [k, v] of Object.entries(params ?? {})) url.searchParams.set(k, v);
 
-  const res = await fetch(url, { ...rest, cache: "no-store" });
+  // A hung request must fail (and be retried) instead of eating the whole function time.
+  const res = await fetch(url, { signal: AbortSignal.timeout(15_000), ...rest, cache: "no-store" });
   const json = await res.json().catch(() => ({}));
 
   if (!res.ok) {
