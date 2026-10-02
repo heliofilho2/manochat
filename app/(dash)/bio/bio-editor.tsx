@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { BioPage } from "@/components/bio-page";
 import { FONT_LABELS } from "@/components/bio-fonts";
@@ -359,6 +360,10 @@ export function BioEditor({
           <span className="flex items-center gap-2 text-[15px] text-muted">
             <span className="h-[7px] w-[7px] rounded-full bg-success" />
             Alterações salvas automaticamente
+            <span aria-hidden>·</span>
+            <Link href="/bio/metricas" className="font-semibold text-ink underline underline-offset-[3px]">
+              Ver métricas →
+            </Link>
           </span>
         </div>
         <div className="flex max-w-full flex-wrap items-center gap-2 rounded-[14px] border border-line bg-white py-1.5 pr-1.5 pl-3.5">

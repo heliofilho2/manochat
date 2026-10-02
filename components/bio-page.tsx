@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { PostThumb } from "@/components/post-thumb";
 import { IconChat } from "@/components/icons";
 import { SocialIcon } from "@/components/social-icons";
@@ -37,6 +37,21 @@ export function BioPage({
   framed?: boolean;
 }) {
   const [open, setOpen] = useState<string | null>(null);
+
+  // Count the visit. The page is cached, so the server can't see each one;
+  // a small beacon does, at most once per 30 minutes per browser tab session.
+  useEffect(() => {
+    if (!accountId) return; // editor preview
+    try {
+      const key = `bv:${accountId}`;
+      if (Date.now() - Number(sessionStorage.getItem(key) ?? 0) < 30 * 60_000) return;
+      sessionStorage.setItem(key, String(Date.now()));
+    } catch {
+      /* storage blocked: count it anyway */
+    }
+    const payload = JSON.stringify({ a: accountId, ref: document.referrer });
+    navigator.sendBeacon?.("/r/view", new Blob([payload], { type: "application/json" }));
+  }, [accountId]);
   const r = resolveStyle(settings);
   const st = settings.style;
   const photo = settings.photo || profilePicture;

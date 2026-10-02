@@ -21,7 +21,12 @@ export default async function BioEditorPage() {
     loadRecentPosts(acct.id, 30),
   ]);
 
-  const publicUrl = `${env.appUrl}/u/${acct.username}`;
+  // With a bio-only domain configured (BIO_DOMAIN + BIO_USERNAME), that is the address to share.
+  const bioHost = process.env.BIO_DOMAIN?.trim();
+  const publicUrl =
+    bioHost && process.env.BIO_USERNAME?.replace(/^@/, "") === acct.username
+      ? `https://${bioHost}`
+      : `${env.appUrl}/u/${acct.username}`;
   return (
     <BioEditor
       initial={settings}

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { account, automation, bioConfig, db, igPost, linkClick } from "@/db";
+import { classifyDevice, isBot } from "@/lib/bio/analytics";
 import { destinationFor, withUtm } from "@/lib/bio/links";
 import { safeUrl } from "@/lib/bio/theme";
 
@@ -13,7 +14,7 @@ const UUID = /^[0-9a-f-]{36}$/i;
  *   /r/p-<mediaId>                 → a recent post's permalink
  *   /r/m-<accountId>.<manualId>    → a manual link from the bio settings
  */
-export async function GET(_req: Request, ctx: RouteContext<"/r/[id]">) {
+export async function GET(req: Request, ctx: RouteContext<"/r/[id]">) {
   const { id } = await ctx.params;
   const kind = id.slice(0, 2);
   const ref = id.slice(2);
@@ -59,6 +60,8 @@ export async function GET(_req: Request, ctx: RouteContext<"/r/[id]">) {
 
   if (!accountId || !dest) return new NextResponse("Not found", { status: 404 });
 
-  await db.insert(linkClick).values({ accountId, linkId: id });
+  // Link-preview bots and crawlers follow links too; they are not visitors.
+  const ua = req.headers.get("user-agent") ?? "";
+  if (!isBot(ua)) await db.insert(linkClick).values({ accountId, linkId: id, device: classifyDevice(ua) });
   return NextResponse.redirect(withUtm(dest), 302);
 }

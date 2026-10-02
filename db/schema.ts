@@ -326,6 +326,8 @@ export const linkClick = pgTable(
       .notNull()
       .references(() => account.id, { onDelete: "cascade" }),
     linkId: text("link_id").notNull(),
+    /** celular | tablet | desktop; null on clicks recorded before this existed. */
+    device: text("device"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("link_click_account_time_idx").on(t.accountId, t.createdAt)],
@@ -424,4 +426,24 @@ export const tapEvent = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("tap_event_automation_time_idx").on(t.automationId, t.createdAt)],
+);
+
+/* ────────────────────────────────────────────────────────────────────────
+ * Bio view — one row per visit to the public link-in-bio page. No IP and no
+ * cookie: only where the visit came from and what kind of device it was.
+ * ──────────────────────────────────────────────────────────────────────── */
+export const bioView = pgTable(
+  "bio_view",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => account.id, { onDelete: "cascade" }),
+    /** instagram | tiktok | whatsapp | facebook | youtube | x | direto | outros */
+    source: text("source").notNull(),
+    /** celular | tablet | desktop */
+    device: text("device").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("bio_view_account_time_idx").on(t.accountId, t.createdAt)],
 );

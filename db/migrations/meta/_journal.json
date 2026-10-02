@@ -57,6 +57,13 @@
       "when": 1790875434456,
       "tag": "0007_tap_event",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790947948732,
+      "tag": "0008_bio_analytics",
+      "breakpoints": true
     }
   ]
 }
