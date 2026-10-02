@@ -256,8 +256,9 @@ O app precisa de três rotinas, todas chamadas com `Authorization: Bearer <CRON_
 **Como agendar (escolha uma):**
 - **[cron-job.org](https://cron-job.org)** (grátis): crie um job para cada rota, método GET, com o
   cabeçalho `Authorization: Bearer <CRON_SECRET>`. É o mais confiável para intervalos curtos.
-- **GitHub Actions** (já incluso em `.github/workflows/cron.yml`): crie os *secrets* `APP_URL` e
-  `CRON_SECRET` no seu repositório. Execuções agendadas do GitHub podem atrasar vários minutos.
+- **GitHub Actions** (workflow pronto em `.github/workflows/cron.yml`, com o agendamento comentado): crie os
+  *secrets* `APP_URL` e `CRON_SECRET` no seu repositório e descomente o bloco `schedule:`. Execuções
+  agendadas do GitHub podem atrasar vários minutos.
 - **Vercel Pro:** basta adicionar as rotas em `vercel.json`. Na Hobby só o diário é permitido; por
   isso `refresh-token` já vem em `vercel.json`.
 

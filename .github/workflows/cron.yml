@@ -1,10 +1,14 @@
 name: Scheduled jobs
 
-# Replaces the sub-daily Vercel Cron jobs (not available on the Hobby plan).
+# Optional alternative to an external scheduler (cron-job.org). It is DISABLED
+# for scheduled runs here because the crons run on cron-job.org; only the
+# manual "Run workflow" button works. To use GitHub Actions as the scheduler
+# instead, uncomment the `schedule:` block below.
+#
 # The daily refresh-token job stays in vercel.json.
 #
 # Requires two repo secrets (Settings -> Secrets and variables -> Actions):
-#   APP_URL      e.g. https://manychat.vercel.app  (no trailing slash)
+#   APP_URL      your public URL, e.g. https://seu-app.vercel.app  (no trailing slash)
 #   CRON_SECRET  same value as the Vercel env var
 #
 # Note: GitHub's scheduled runs can be delayed several minutes under load.
@@ -12,10 +16,10 @@ name: Scheduled jobs
 # weekly `keepalive` job below refreshes that timer so the schedule keeps running.
 
 on:
-  schedule:
-    - cron: "*/5 * * * *"   # process-events
-    - cron: "*/15 * * * *"  # sync-inbox (also runs on the */5 tick every 15 min)
-    - cron: "0 6 * * 1"     # keepalive (weekly, Mondays 06:00 UTC)
+  # schedule:
+  #   - cron: "*/5 * * * *"   # process-events
+  #   - cron: "*/15 * * * *"  # sync-inbox (also runs on the */5 tick every 15 min)
+  #   - cron: "0 6 * * 1"     # keepalive (weekly, Mondays 06:00 UTC)
   workflow_dispatch:
     inputs:
       job:
