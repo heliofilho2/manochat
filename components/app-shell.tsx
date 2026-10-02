@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { IconBolt, IconChevrons, IconDashboard, IconInbox, IconLink, IconUsers, IconWarn } from "./icons";
+import { IconBolt, IconChart, IconChevrons, IconDashboard, IconInbox, IconLink, IconUsers, IconWarn } from "./icons";
 import { Logo, LogoMark } from "./logo";
 import { ToastProvider } from "./toast";
 
@@ -22,6 +22,7 @@ const NAV = [
   { href: "/entrada", label: "Caixa de entrada", tab: "Entrada", Icon: IconInbox },
   { href: "/leads", label: "Leads", tab: "Leads", Icon: IconUsers },
   { href: "/bio", label: "Minha página de bio", tab: "Bio", Icon: IconLink },
+  { href: "/bio/metricas", label: "Métricas da bio", tab: "Métricas", Icon: IconChart },
 ] as const;
 
 function Avatar({ acct, size, ring }: { acct: ShellAccount; size: number; ring: string }) {
@@ -59,7 +60,11 @@ export function AppShell({
   const [menu, setMenu] = useState(false);
   const [reconnecting, setReconnecting] = useState(false);
 
-  const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
+  // Most specific match wins, so /bio/metricas does not also light up /bio.
+  const current = NAV.map((n) => n.href)
+    .filter((h) => pathname === h || pathname.startsWith(`${h}/`))
+    .sort((a, b) => b.length - a.length)[0];
+  const isActive = (href: string) => href === current;
 
   // The overlay is only feedback; the anchor itself performs the OAuth hop.
   const onReconnect = () => {
@@ -171,7 +176,7 @@ export function AppShell({
       </div>
 
       {/* Tab bar (mobile) */}
-      <nav className="fixed right-0 bottom-0 left-0 z-30 grid h-[68px] grid-cols-5 border-t border-line bg-white pb-[env(safe-area-inset-bottom)] min-[820px]:hidden">
+      <nav className="fixed right-0 bottom-0 left-0 z-30 grid h-[68px] grid-cols-6 border-t border-line bg-white pb-[env(safe-area-inset-bottom)] min-[820px]:hidden">
         {NAV.map(({ href, tab, Icon }) => {
           const on = isActive(href);
           return (

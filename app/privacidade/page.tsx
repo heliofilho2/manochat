@@ -22,6 +22,11 @@ export default function PrivacyPage() {
           posts e as mensagens diretas trocadas pelas automações. Também guardamos as automações e textos que
           você cria. Nunca recebemos sua senha.
         </LegalP>
+        <LegalP>
+          Na página pública de links, contamos visitas e cliques de forma agregada: de onde veio o acesso (por
+          exemplo, Instagram ou WhatsApp) e o tipo de aparelho (celular, tablet ou computador). Não guardamos o
+          endereço IP de quem visita e não usamos cookies de rastreamento.
+        </LegalP>
       </LegalSection>
       <LegalSection title="2. Para que usamos">
         <LegalP>
