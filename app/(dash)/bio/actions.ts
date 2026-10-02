@@ -48,6 +48,7 @@ const styleSchema = z.object({
     .array(z.object({ type: z.enum(SOCIAL_TYPES), url: z.string().max(300) }))
     .max(8),
   showBranding: z.boolean(),
+  showAutomations: z.boolean(),
 });
 
 const schema = z.object({

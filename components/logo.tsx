@@ -18,7 +18,7 @@ export function Logo({ size = 26, text = 22 }: { size?: number; text?: number })
     <span className="flex items-center gap-[9px]">
       <LogoMark size={size} />
       <span className="leading-none font-bold tracking-[-0.02em]" style={{ fontSize: text }}>
-        manochat
+        oslinke
       </span>
     </span>
   );

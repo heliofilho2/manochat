@@ -7,7 +7,7 @@ import { getSession } from "@/lib/session";
 import { BioEditor } from "./bio-editor";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Minha página de bio — Manochat" };
+export const metadata = { title: "Minha página de bio — Oslinke" };
 
 export default async function BioEditorPage() {
   const session = await getSession();

@@ -134,7 +134,7 @@ export function AppShell({
           <header className="sticky top-0 z-20 flex h-[60px] items-center justify-between border-b border-line bg-bg px-4 min-[820px]:hidden">
             <Link href="/painel" className="flex items-center gap-2">
               <LogoMark size={24} />
-              <span className="text-xl leading-none font-bold tracking-[-0.02em]">manochat</span>
+              <span className="text-xl leading-none font-bold tracking-[-0.02em]">oslinke</span>
             </Link>
             <button
               type="button"

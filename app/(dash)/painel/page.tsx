@@ -16,7 +16,7 @@ import { IconChart, IconLock } from "@/components/icons";
 import { RankingCard } from "./ranking-card";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Painel — Manochat" };
+export const metadata = { title: "Painel — Oslinke" };
 
 const PERIODS = [7, 30, 90] as const;
 
@@ -244,7 +244,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/painel
               <div className="flex min-w-[240px] flex-1 flex-col gap-1">
                 <strong className="text-[19px] leading-[1.2] font-bold">Falta a permissão de métricas</strong>
                 <span className="text-sm leading-[1.55]">
-                  Para mostrar alcance, seguidores e o que mais converte, o Manochat precisa da permissão
+                  Para mostrar alcance, seguidores e o que mais converte, o Oslinke precisa da permissão
                   &quot;Insights do Instagram&quot;. Ela provavelmente foi desmarcada na hora de conectar.
                 </span>
               </div>

@@ -5,7 +5,7 @@ import { DemoBio, DemoConversation } from "./demo-client";
 import { DemoLeads, DemoPainel } from "./demo-server";
 
 export const metadata: Metadata = {
-  title: "Como o Manochat funciona",
+  title: "Como o Oslinke funciona",
   description:
     "Automação gratuita de Instagram: comentou a palavra ou respondeu o story, recebeu o link na DM. Veja em detalhes como vai funcionar.",
 };
@@ -58,7 +58,7 @@ function Feature({
 const FAQ: [string, string][] = [
   [
     "É gratuito mesmo?",
-    "Sim. A ideia é que o Manochat seja gratuito para o criador. Sem cobrança por DM enviada e sem plano escondido.",
+    "Sim. A ideia é que o Oslinke seja gratuito para o criador. Sem cobrança por DM enviada e sem plano escondido.",
   ],
   [
     "Já posso usar?",
@@ -74,15 +74,15 @@ const FAQ: [string, string][] = [
   ],
   [
     "Como funciona a checagem de quem segue?",
-    "Você pode exigir que a pessoa siga o perfil antes de receber o link. Ela toca em “Já sigo ✅”, o Manochat confere com a Meta e, se ela ainda não seguir, recebe um lembrete gentil para tentar de novo.",
+    "Você pode exigir que a pessoa siga o perfil antes de receber o link. Ela toca em “Já sigo ✅”, o Oslinke confere com a Meta e, se ela ainda não seguir, recebe um lembrete gentil para tentar de novo.",
   ],
   [
     "Existe limite de mensagens?",
-    "Sim, os limites são da própria Meta: a DM inicial é a resposta a um comentário (até 7 dias depois) e as demais precisam acontecer em até 24 horas da última interação da pessoa. O Manochat respeita essas regras para não arriscar sua conta.",
+    "Sim, os limites são da própria Meta: a DM inicial é a resposta a um comentário (até 7 dias depois) e as demais precisam acontecer em até 24 horas da última interação da pessoa. O Oslinke respeita essas regras para não arriscar sua conta.",
   ],
   [
     "Vou perder minhas conversas normais?",
-    "Não. Suas conversas continuam no Instagram como sempre. O Manochat só responde às palavras-chave que você configurar e ainda mostra uma caixa de entrada com o que foi enviado.",
+    "Não. Suas conversas continuam no Instagram como sempre. O Oslinke só responde às palavras-chave que você configurar e ainda mostra uma caixa de entrada com o que foi enviado.",
   ],
   [
     "E os dados dos leads?",
@@ -115,7 +115,7 @@ export default function ComoFunciona() {
           Sua audiência comenta ou responde o story. O link chega na DM, sozinho.
         </h1>
         <p className="m-0 max-w-[640px] text-[clamp(17px,1.6vw,19px)] leading-[1.6] text-ink-2">
-          O Manochat é uma ferramenta gratuita para criadores e pequenos negócios que querem entregar links, materiais e
+          O Oslinke é uma ferramenta gratuita para criadores e pequenos negócios que querem entregar links, materiais e
           ofertas pelo Instagram sem ficar respondendo um por um, e ainda saber quem se interessou.
         </p>
         <div className="flex flex-wrap items-center gap-3">
@@ -193,12 +193,12 @@ export default function ComoFunciona() {
         }
       >
         <p className="m-0">
-          Se você quiser, o link só é liberado para quem segue o perfil. Ao tocar em “Já sigo ✅”, o Manochat pergunta
+          Se você quiser, o link só é liberado para quem segue o perfil. Ao tocar em “Já sigo ✅”, o Oslinke pergunta
           à Meta se a pessoa segue de fato. Não é só confiar no clique.
         </p>
         <p className="m-0">
           Quem ainda não segue recebe um lembrete e pode tentar de novo. Como a Meta às vezes demora alguns segundos
-          para refletir um follow novo, o Manochat confere uma segunda vez antes de negar.
+          para refletir um follow novo, o Oslinke confere uma segunda vez antes de negar.
         </p>
       </Feature>
 
@@ -255,7 +255,7 @@ export default function ComoFunciona() {
         }
       >
         <p className="m-0">
-          Cada conta ganha uma página pública (manochat.vercel.app/u/seu-usuario) com os seus links, as automações ativas
+          Cada conta ganha uma página pública (no endereço /u/seu-usuario) com os seus links e, se quiser, as automações ativas
           e os últimos posts. E dá para personalizar bastante.
         </p>
         <ul className="m-0 flex list-disc flex-col gap-1.5 pl-5">
@@ -344,7 +344,7 @@ export default function ComoFunciona() {
       </section>
 
       <footer className={`${wrap} flex flex-wrap items-center justify-between gap-x-6 gap-y-3 py-7 text-sm text-muted`}>
-        <span>© 2026 Manochat · Telas com dados fictícios</span>
+        <span>© 2026 Oslinke · Telas com dados fictícios</span>
         <div className="flex flex-wrap gap-x-5 gap-y-2">
           <Link href="/privacidade" className="text-ink-2 underline underline-offset-[3px] hover:text-ink">
             Política de Privacidade

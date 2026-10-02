@@ -110,6 +110,8 @@ export interface BioStyle {
   textColor: string | null;
   socials: { type: SocialType; url: string }[];
   showBranding: boolean;
+  /** List the active automations ("Comente PALAVRA…") on the page. Off by default. */
+  showAutomations: boolean;
 }
 
 export const DEFAULT_STYLE: BioStyle = {
@@ -123,6 +125,7 @@ export const DEFAULT_STYLE: BioStyle = {
   textColor: null,
   socials: [],
   showBranding: true,
+  showAutomations: false,
 };
 
 /** Applied when a preset is picked, so each theme feels different, not just recoloured. */
@@ -209,11 +212,14 @@ interface AutoLike {
   postIds: string[];
 }
 
-/** Automations (active) + manual entries, ordered by `order`, flagged by `hidden`. */
+/**
+ * Manual entries, plus the active automations when the owner turned them on,
+ * ordered by `order` and flagged by `hidden`.
+ */
 export function buildItems(b: BioSettings, autos: AutoLike[]): BioItem[] {
   const all: BioItem[] = [
     ...autos
-      .filter((a) => a.keywords.length > 0)
+      .filter((a) => b.style.showAutomations && a.keywords.length > 0)
       .map((a) => ({
         id: a.id,
         kind: "auto" as const,

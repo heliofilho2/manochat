@@ -8,7 +8,7 @@ import { getSession } from "@/lib/session";
 import { nowMs } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Primeiros passos — Manochat" };
+export const metadata = { title: "Primeiros passos — Oslinke" };
 
 type Mark = { bg: string; fg: string; mark: string; pillBg: string; pillFg: string };
 const OK: Mark = {
@@ -175,7 +175,7 @@ export default async function OnboardingPage() {
       </ol>
 
       <p className="m-0 text-sm leading-[1.6] text-muted">
-        O &quot;recebimento de comentários&quot; é o canal pelo qual o Instagram avisa o Manochat, na hora, que
+        O &quot;recebimento de comentários&quot; é o canal pelo qual o Instagram avisa o Oslinke, na hora, que
         alguém comentou. Você não precisa configurar nada.
       </p>
     </div>

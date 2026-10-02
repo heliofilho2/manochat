@@ -12,7 +12,7 @@ import { CommentsList, type CommentItem } from "./comments-list";
 import { ConversationsPane, type ThreadItem, type ThreadMessage } from "./conversations-pane";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Caixa de entrada — Manochat" };
+export const metadata = { title: "Caixa de entrada — Oslinke" };
 
 export default async function InboxPage({ searchParams }: PageProps<"/entrada">) {
   const session = await getSession();
@@ -146,7 +146,7 @@ export default async function InboxPage({ searchParams }: PageProps<"/entrada">)
           <h1 className="m-0 text-[clamp(30px,4.5vw,42px)] leading-[1.02] font-bold tracking-[-0.025em]">
             Caixa de entrada
           </h1>
-          <span className="text-[15px] text-muted">Tudo o que o Manochat respondeu e enviou por você.</span>
+          <span className="text-[15px] text-muted">Tudo o que o Oslinke respondeu e enviou por você.</span>
         </div>
         <div role="tablist" className="flex gap-0.5 rounded-xl bg-fill p-1">
           {tabs.map((t) => (

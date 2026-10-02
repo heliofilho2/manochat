@@ -1,7 +1,7 @@
 import { LegalP, LegalSection, LegalShell, PRIVACY_EMAIL } from "@/components/legal-shell";
 import { DeletionForm } from "./deletion-form";
 
-export const metadata = { title: "Exclusão de dados — Manochat" };
+export const metadata = { title: "Exclusão de dados — Oslinke" };
 
 /** Data Deletion Instructions URL required by Meta. */
 export default function DataDeletionPage() {
@@ -13,12 +13,12 @@ export default function DataDeletionPage() {
           Exclusão de dados
         </h1>
         <p className="m-0 text-lg leading-[1.6] text-ink-2">
-          Você pode apagar todos os seus dados do Manochat quando quiser. Escolha o jeito mais fácil pra você.
+          Você pode apagar todos os seus dados do Oslinke quando quiser. Escolha o jeito mais fácil pra você.
         </p>
       </div>
       <LegalSection title="Pelo Instagram">
         <LegalP>
-          No Instagram, vá em Configurações → Apps e sites → Manochat → Remover. Recebemos o aviso da Meta e
+          No Instagram, vá em Configurações → Apps e sites → Oslinke → Remover. Recebemos o aviso da Meta e
           apagamos seus dados automaticamente em até 30 dias.
         </LegalP>
       </LegalSection>

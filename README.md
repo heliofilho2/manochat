@@ -1,4 +1,4 @@
-# Manochat
+# Oslinke
 
 **Automação de Instagram gratuita e de código aberto para criadores e pequenos negócios.**
 Comentou a palavra ou respondeu o story? O link chega na DM, sozinho. Com checagem de
@@ -304,6 +304,7 @@ Ative também a notificação de falha do próprio cron-job.org, que cobre o cas
 | `DATABASE_URL` | sim | Passo 3 (string *pooled* do Neon) |
 | `APP_URL` | sim | `http://localhost:3000` localmente; sua URL pública em produção, sem `/` final |
 | `NEXT_PUBLIC_PRIVACY_EMAIL` | não | E-mail exibido nas páginas de privacidade e exclusão de dados |
+| `BIO_DOMAIN` + `BIO_USERNAME` | não | Domínio só da bio (ex.: `links.seusite.com`) que abre `/u/<usuario>` na raiz e redireciona o resto para `/`. Adicione o domínio ao projeto na Vercel e crie o CNAME no DNS |
 | `ALERT_WEBHOOK_URL` | não | Webhook do Discord/Slack ou tópico do [ntfy.sh](https://ntfy.sh) que recebe [alertas de falha](#alertas-de-falha) |
 | `LEADS_WEBHOOK_SECRET` | não | Se definido, é enviado como `Authorization: Bearer` ao seu webhook de leads |
 
@@ -448,7 +449,7 @@ configuração. Pedidos de acesso em [instagram.com/heliofilhou](https://instagr
 
 [MIT](LICENSE) © 2026 Helio Filho. Use, modifique e distribua à vontade, mantendo o aviso de copyright.
 
-O Manochat **não é afiliado** à Meta, ao Instagram nem à Manychat. "Instagram" e "Meta" são marcas de
+O Oslinke **não é afiliado** à Meta, ao Instagram nem à Manychat. "Instagram" e "Meta" são marcas de
 seus respectivos donos.
 
 ## Créditos

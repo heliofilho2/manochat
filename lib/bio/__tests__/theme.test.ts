@@ -8,9 +8,20 @@ const autos = [
 ];
 
 describe("bio items", () => {
+  it("keeps automations off the page unless the owner turns them on", () => {
+    const manual = [{ id: "m1", label: "Loja", url: "https://loja.com" }];
+    expect(buildItems({ ...DEFAULT_BIO, manual }, autos).map((i) => i.id)).toEqual(["m1"]);
+  });
+
   it("lists automations with a keyword plus manual links, honouring order and hidden", () => {
     const items = buildItems(
-      { ...DEFAULT_BIO, manual: [{ id: "m1", label: "Loja", url: "https://loja.com" }], order: ["m1", "a3"], hidden: ["a3"] },
+      {
+        ...DEFAULT_BIO,
+        style: { ...DEFAULT_BIO.style, showAutomations: true },
+        manual: [{ id: "m1", label: "Loja", url: "https://loja.com" }],
+        order: ["m1", "a3"],
+        hidden: ["a3"],
+      },
       autos,
     );
     expect(items.map((i) => i.id)).toEqual(["m1", "a3", "a1"]);

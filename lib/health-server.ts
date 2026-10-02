@@ -76,13 +76,13 @@ export async function runHealthCheck(): Promise<{ issues: number; alerted: numbe
     const fresh: Issue[] = [];
     for (const issue of issues) if (await claim(issue)) fresh.push(issue);
     if (fresh.length > 0) {
-      const host = process.env.APP_URL ?? "Manochat";
+      const host = process.env.APP_URL ?? "Oslinke";
       const lines = fresh.map((i) => `${i.severity === "error" ? "🔴" : "🟡"} ${i.title}\n${i.detail}`);
       // One tap from the phone: the login link, when the fix is "reconnect".
       const reconnect = fresh.some((i) => i.key === "token-invalid" || i.key.startsWith("token:"))
         ? `\n\nReconectar agora: ${host}/api/auth/instagram`
         : "";
-      await post(`Manochat (${host})\n\n${lines.join("\n\n")}${reconnect}`);
+      await post(`Oslinke (${host})\n\n${lines.join("\n\n")}${reconnect}`);
     }
     return { issues: issues.length, alerted: fresh.length };
   } catch (error) {

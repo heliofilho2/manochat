@@ -9,7 +9,7 @@ import { IconUsers } from "@/components/icons";
 import { WebhookForm } from "./webhook-form";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Leads — Manochat" };
+export const metadata = { title: "Leads — Oslinke" };
 
 export default async function LeadsPage() {
   const session = await getSession();

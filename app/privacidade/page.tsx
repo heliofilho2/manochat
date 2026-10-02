@@ -1,6 +1,6 @@
 import { LegalP, LegalSection, LegalShell, PRIVACY_EMAIL } from "@/components/legal-shell";
 
-export const metadata = { title: "Política de Privacidade — Manochat" };
+export const metadata = { title: "Política de Privacidade — Oslinke" };
 
 export default function PrivacyPage() {
   return (
@@ -11,7 +11,7 @@ export default function PrivacyPage() {
           Política de Privacidade
         </h1>
         <p className="m-0 text-lg leading-[1.6] text-ink-2">
-          Em linguagem simples: o que o Manochat coleta, por quê, e como você controla seus dados, conforme a
+          Em linguagem simples: o que o Oslinke coleta, por quê, e como você controla seus dados, conforme a
           Lei Geral de Proteção de Dados (LGPD).
         </p>
       </div>

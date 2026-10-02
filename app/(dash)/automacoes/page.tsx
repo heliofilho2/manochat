@@ -6,7 +6,7 @@ import { AutomationList, type ListItem } from "./automation-list";
 import { listPosts } from "./posts";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Automações — Manochat" };
+export const metadata = { title: "Automações — Oslinke" };
 
 export default async function AutomationsPage() {
   const session = await getSession();

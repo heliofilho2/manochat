@@ -8,7 +8,7 @@ import { nowMs } from "@/lib/time";
 import { AutomationFunnel } from "../automation-funnel";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Por automação — Manochat" };
+export const metadata = { title: "Por automação — Oslinke" };
 
 const PERIODS = [7, 30, 90] as const;
 

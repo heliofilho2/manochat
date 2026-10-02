@@ -430,9 +430,22 @@ export function BioEditor({
                 <div className="flex flex-col gap-1">
                   <H2>Botões e links</H2>
                   <span className="text-[13px] leading-normal text-muted">
-                    Os botões automáticos vêm das suas automações ativas. Pause uma automação e o botão some
-                    sozinho.
+                    Seus links e títulos de seção. Quem chega pela bio já escolheu clicar; as automações de
+                    comentário funcionam sem aparecer aqui.
                   </span>
+                </div>
+                <div className="flex items-center justify-between gap-3 rounded-[14px] bg-bg px-4 py-3">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-sm font-medium">Mostrar automações na página</span>
+                    <span className="text-xs leading-normal text-muted">
+                      Lista um botão &quot;Comente PALAVRA…&quot; para cada automação ativa.
+                    </span>
+                  </div>
+                  <Switch
+                    checked={st.showAutomations}
+                    onChange={() => chStyle({ showAutomations: !st.showAutomations })}
+                    label="Mostrar automações na página"
+                  />
                 </div>
                 {items.length === 0 ? (
                   <div className="rounded-[14px] bg-bg p-5 text-center text-sm text-muted">
@@ -1025,11 +1038,11 @@ export function BioEditor({
 
               <Group title="Rodapé">
                 <div className="flex items-center justify-between gap-3">
-                  <span className="text-sm font-medium">Mostrar “feito com Manochat”</span>
+                  <span className="text-sm font-medium">Mostrar “feito com Oslinke”</span>
                   <Switch
                     checked={st.showBranding}
                     onChange={() => chStyle({ showBranding: !st.showBranding })}
-                    label="Mostrar feito com Manochat"
+                    label="Mostrar feito com Oslinke"
                   />
                 </div>
               </Group>

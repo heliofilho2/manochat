@@ -8,7 +8,7 @@ import { AutomationEditor } from "../automation-editor";
 import { listPosts, listStories } from "../posts";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Editar automação — Manochat" };
+export const metadata = { title: "Editar automação — Oslinke" };
 
 export default async function EditAutomationPage({ params }: PageProps<"/automacoes/[id]">) {
   const session = await getSession();

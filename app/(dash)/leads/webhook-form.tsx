@@ -15,7 +15,7 @@ export function WebhookForm({ initial }: { initial: string }) {
       <div className="flex flex-col gap-1">
         <h2 className="m-0 text-[22px] leading-[1.15] font-bold tracking-[-0.02em]">Enviar para o meu site</h2>
         <span className="text-[13px] leading-normal text-muted">
-          A cada lead novo (ou quando a pessoa deixa e-mail/WhatsApp), o Manochat manda um POST em JSON para
+          A cada lead novo (ou quando a pessoa deixa e-mail/WhatsApp), o Oslinke manda um POST em JSON para
           este endereço. Deixe vazio para não enviar.
         </span>
       </div>

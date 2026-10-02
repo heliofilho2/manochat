@@ -32,7 +32,7 @@ export default async function Landing({ searchParams }: PageProps<"/">) {
             Comentou a palavra, recebeu o link na DM.
           </h1>
           <p className="animate-up m-0 max-w-[520px] text-[clamp(17px,1.6vw,19px)] leading-[1.55] text-ink-2 [animation-delay:.12s]">
-            O Manochat responde os comentários dos seus posts e manda seu link por mensagem direta — sozinho, a
+            O Oslinke responde os comentários dos seus posts e manda seu link por mensagem direta — sozinho, a
             qualquer hora. Você configura em 5 minutos, sem código e sem planilha.
           </p>
           <div className="animate-up flex flex-col items-start gap-3 [animation-delay:.18s]">
@@ -118,7 +118,7 @@ export default async function Landing({ searchParams }: PageProps<"/">) {
             {[
               ["01", "Conecte seu Instagram", "Um clique no botão acima. Você autoriza pelo próprio Instagram — a gente nunca vê sua senha.", false],
               ["02", "Escolha a palavra e o post", "Ex.: quem comentar RECEITA no seu Reel recebe o link. Você escreve as mensagens e vê a conversa antes de ativar.", false],
-              ["03", "Pronto, é com a gente", "O Manochat responde o comentário, manda a DM e entrega o link. Você acompanha tudo pelo painel.", true],
+              ["03", "Pronto, é com a gente", "O Oslinke responde o comentário, manda a DM e entrega o link. Você acompanha tudo pelo painel.", true],
             ].map(([n, t, d, last]) => (
               <div
                 key={n as string}
@@ -143,7 +143,7 @@ export default async function Landing({ searchParams }: PageProps<"/">) {
       </section>
 
       <footer className="mx-auto flex w-full max-w-[1200px] flex-wrap items-center justify-between gap-x-6 gap-y-3 px-[clamp(16px,4vw,40px)] py-7 text-sm text-muted">
-        <span>© 2026 Manochat</span>
+        <span>© 2026 Oslinke</span>
         <div className="flex flex-wrap gap-x-5 gap-y-2">
           <Link href="/privacidade" className="text-ink-2 underline underline-offset-[3px] hover:text-ink">
             Política de Privacidade

@@ -532,7 +532,7 @@ export function AutomationEditor({
 
             {stepId === "posts" ? (
               <div className="animate-up-fast flex flex-col gap-[22px]">
-                <StepHeader title="Em quais posts?" help="Onde o Manochat deve ficar de olho nos comentários." />
+                <StepHeader title="Em quais posts?" help="Onde o Oslinke deve ficar de olho nos comentários." />
                 <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,180px),1fr))] gap-2.5">
                   {(
                     [
@@ -955,7 +955,7 @@ export function AutomationEditor({
                 />
                 <ToggleRow
                   title="Reagir com ♥ à resposta"
-                  help="Quando alguém responder ao story, o Manochat curte a mensagem dela."
+                  help="Quando alguém responder ao story, o Oslinke curte a mensagem dela."
                   checked={d.reactHeart}
                   onChange={() => up({ reactHeart: !d.reactHeart })}
                 />
@@ -990,7 +990,7 @@ export function AutomationEditor({
                 </ToggleRow>
                 <ToggleRow
                   title="Pedir e-mail"
-                  help="Depois do link, o Manochat pergunta o e-mail e guarda na aba Leads."
+                  help="Depois do link, o Oslinke pergunta o e-mail e guarda na aba Leads."
                   checked={d.collectEmail}
                   onChange={() => up({ collectEmail: !d.collectEmail })}
                 >

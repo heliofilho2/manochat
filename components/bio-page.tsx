@@ -47,6 +47,8 @@ export function BioPage({
     if (!accountId) e.preventDefault();
   };
   const href = (path: string) => (accountId ? path : "#");
+  // Every link leaves the page in a new tab, so the visitor can come back to it.
+  const blank = { target: "_blank", rel: "noopener noreferrer" } as const;
 
   // Instagram is always there; the owner adds the rest.
   const socials = [
@@ -291,7 +293,7 @@ export function BioPage({
                           1. Abra o post · 2. Comente <strong>{it.keyword}</strong> · 3. Confira sua DM
                         </span>
                         <a
-                          href={href(`/r/a-${it.id}`)}
+                          href={href(`/r/a-${it.id}`)} {...blank}
                           onClick={inert}
                           className="flex h-9 items-center self-start rounded-[10px] px-3.5 text-[13px] font-semibold no-underline"
                           style={{ background: r.accent, color: r.accentFg }}
@@ -307,7 +309,7 @@ export function BioPage({
             return (
               <a
                 key={it.id}
-                href={href(`/r/m-${accountId}.${it.id}`)}
+                href={href(`/r/m-${accountId}.${it.id}`)} {...blank}
                 onClick={inert}
                 className={`animate-up relative flex min-h-14 items-center justify-center gap-2.5 px-11 py-3 text-center text-[15px] font-semibold no-underline transition-transform duration-300 ease-brand ${
                   r.hover ? "hover:-translate-y-0.5" : ""
@@ -329,7 +331,7 @@ export function BioPage({
             {layout === "grid3" ? (
               <div className="grid grid-cols-3 gap-[3px] overflow-hidden" style={{ borderRadius: r.radius === "999px" ? "20px" : r.radius }}>
                 {posts.slice(0, 9).map((p) => (
-                  <a key={p.id} href={href(`/r/p-${p.id}`)} onClick={inert} className="relative block aspect-[4/5]">
+                  <a key={p.id} href={href(`/r/p-${p.id}`)} {...blank} onClick={inert} className="relative block aspect-[4/5]">
                     <PostThumb post={p} caption={false} />
                   </a>
                 ))}
@@ -340,7 +342,7 @@ export function BioPage({
                 {posts.slice(0, 6).map((p) => (
                   <a
                     key={p.id}
-                    href={href(`/r/p-${p.id}`)}
+                    href={href(`/r/p-${p.id}`)} {...blank}
                     onClick={inert}
                     className="relative block aspect-[4/5] overflow-hidden rounded-[14px]"
                   >
@@ -354,7 +356,7 @@ export function BioPage({
                 {posts.slice(0, 9).map((p) => (
                   <a
                     key={p.id}
-                    href={href(`/r/p-${p.id}`)}
+                    href={href(`/r/p-${p.id}`)} {...blank}
                     onClick={inert}
                     className="relative block aspect-[4/5] flex-[0_0_62%] snap-start overflow-hidden rounded-2xl"
                   >
@@ -368,7 +370,7 @@ export function BioPage({
                 {posts.slice(0, 5).map((p) => (
                   <a
                     key={p.id}
-                    href={href(`/r/p-${p.id}`)}
+                    href={href(`/r/p-${p.id}`)} {...blank}
                     onClick={inert}
                     className="flex items-center gap-3 rounded-[14px] border p-2 no-underline"
                     style={{ background: r.card, borderColor: r.line, color: r.text }}
@@ -393,7 +395,7 @@ export function BioPage({
           <div className="flex justify-center pt-2 pb-1">
             <span className="flex items-center gap-1.5 text-xs font-medium opacity-80" style={{ color: r.muted }}>
               <span className="h-2.5 w-2.5 rounded-[3px_3px_3px_1px]" style={{ background: r.muted }} />
-              feito com Manochat
+              feito com Oslinke
             </span>
           </div>
         ) : null}
