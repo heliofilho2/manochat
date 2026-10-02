@@ -4,15 +4,23 @@ import { db, igPost } from "@/db";
 import { accessTokenFor, getAccountById } from "@/lib/account";
 import { getStories } from "@/lib/instagram/client";
 import { refresh } from "@/lib/bio/data";
-import { isStale } from "@/lib/bio/links";
 import { toPostView, type PostView } from "@/lib/posts-view";
+
+/** The post list is re-fetched when the newest cached row is older than this. */
+const POSTS_FRESH_MS = 2 * 60 * 1000;
+/** ...but never more often than this, so a failing API is not hammered. */
+const MIN_REFRESH_GAP_MS = 60 * 1000;
 
 /**
  * Cached media for the post picker. The cache is topped up on demand when it
- * is stale (or empty and not just tried), so the picker never depends on a
- * cron having run.
+ * is a couple of minutes old (or forced by the "Atualizar lista" button), so a
+ * reel published a moment ago shows up without waiting for the cron.
  */
-export async function listPosts(accountId: string, limit = 60): Promise<PostView[]> {
+export async function listPosts(
+  accountId: string,
+  limit = 60,
+  opts: { force?: boolean } = {},
+): Promise<PostView[]> {
   const read = () =>
     db
       .select()
@@ -24,11 +32,12 @@ export async function listPosts(accountId: string, limit = 60): Promise<PostView
   let rows = await read();
   const acct = await getAccountById(accountId);
   if (acct) {
-    const stale = isStale(acct.followersSyncedAt);
-    const emptyAndNotJustTried =
-      rows.length === 0 &&
-      (!acct.followersSyncedAt || Date.now() - acct.followersSyncedAt.getTime() > 5 * 60 * 1000);
-    if (stale || emptyAndNotJustTried) {
+    const now = Date.now();
+    const newestSync = rows.reduce((m, r) => Math.max(m, r.syncedAt?.getTime() ?? 0), 0);
+    const lastTried = acct.followersSyncedAt?.getTime() ?? 0;
+    const cacheOld = rows.length === 0 || now - newestSync > POSTS_FRESH_MS;
+    const canTry = now - lastTried > MIN_REFRESH_GAP_MS;
+    if (opts.force || (cacheOld && canTry)) {
       await refresh(acct);
       rows = await read();
     }

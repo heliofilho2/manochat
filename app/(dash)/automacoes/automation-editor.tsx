@@ -17,6 +17,7 @@ import {
 import type { PostView } from "@/lib/posts-view";
 import { deleteAutomation, saveAutomation } from "../actions";
 import { ConversationPreview } from "./conversation-preview";
+import { refreshPostList } from "./posts-actions";
 
 const EMOJIS = ["😊", "🙌", "💛", "🔥", "✨", "👇", "📩", "🎁"];
 const STATUS_BADGE = {
@@ -69,40 +70,75 @@ function RadioCard({
   );
 }
 
+/** Posts shown before "ver mais": the picker is for recent content. */
+const PICK_VISIBLE = 8;
+
 function PickGrid({
   items,
   selected,
   onToggle,
+  onRefresh,
+  refreshing = false,
 }: {
   items: PostView[];
   selected: string[];
   onToggle: (id: string) => void;
+  /** When given, shows an "Atualizar" button (posts are cached, brand-new ones may be missing). */
+  onRefresh?: () => void;
+  refreshing?: boolean;
 }) {
+  const [all, setAll] = useState(false);
+  // A post that is already selected stays visible even if it is older than the window.
+  const shown = all ? items : items.filter((p, i) => i < PICK_VISIBLE || selected.includes(p.id));
+  const hidden = items.length - shown.length;
   return (
-    <div className="grid grid-cols-[repeat(auto-fill,minmax(96px,1fr))] gap-2">
-      {items.map((p) => {
-        const sel = selected.includes(p.id);
-        return (
-          <button
-            key={p.id}
-            type="button"
-            aria-pressed={sel}
-            onClick={() => onToggle(p.id)}
-            className="relative aspect-[4/5] cursor-pointer overflow-hidden rounded-xl border-[3px] bg-transparent p-0"
-            style={{ borderColor: sel ? "var(--color-accent)" : "transparent" }}
-          >
-            <div className="absolute inset-0 overflow-hidden rounded-[9px]">
-              <PostThumb post={p} />
-            </div>
-            <span
-              className="absolute top-1.5 left-1.5 flex h-6 w-6 items-center justify-center rounded-full border-2 border-white text-[13px] font-bold shadow-[0_1px_3px_rgba(0,0,0,.25)]"
-              style={{ background: sel ? "var(--color-accent)" : "rgba(255,252,247,0.5)" }}
+    <div className="flex flex-col gap-3">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(96px,1fr))] gap-2">
+        {shown.map((p) => {
+          const sel = selected.includes(p.id);
+          return (
+            <button
+              key={p.id}
+              type="button"
+              aria-pressed={sel}
+              onClick={() => onToggle(p.id)}
+              className="relative aspect-[4/5] cursor-pointer overflow-hidden rounded-xl border-[3px] bg-transparent p-0"
+              style={{ borderColor: sel ? "var(--color-accent)" : "transparent" }}
             >
-              {sel ? "✓" : ""}
-            </span>
+              <div className="absolute inset-0 overflow-hidden rounded-[9px]">
+                <PostThumb post={p} />
+              </div>
+              <span
+                className="absolute top-1.5 left-1.5 flex h-6 w-6 items-center justify-center rounded-full border-2 border-white text-[13px] font-bold shadow-[0_1px_3px_rgba(0,0,0,.25)]"
+                style={{ background: sel ? "var(--color-accent)" : "rgba(255,252,247,0.5)" }}
+              >
+                {sel ? "✓" : ""}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        {hidden > 0 || all ? (
+          <button
+            type="button"
+            onClick={() => setAll((v) => !v)}
+            className="h-9 cursor-pointer rounded-[10px] border border-line-strong bg-white px-3.5 text-[13px] font-semibold"
+          >
+            {all ? "Mostrar menos" : `Ver mais (${hidden})`}
           </button>
-        );
-      })}
+        ) : null}
+        {onRefresh ? (
+          <button
+            type="button"
+            disabled={refreshing}
+            onClick={onRefresh}
+            className="h-9 cursor-pointer rounded-[10px] border border-line bg-white px-3.5 text-[13px] font-semibold disabled:opacity-60"
+          >
+            {refreshing ? "Atualizando…" : "↻ Atualizar lista"}
+          </button>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -154,7 +190,7 @@ function EmojiRow({ onPick, extra }: { onPick: (e: string) => void; extra?: Reac
 
 export function AutomationEditor({
   initial,
-  posts,
+  posts: initialPosts,
   username,
 }: {
   initial: AutomationDraft;
@@ -164,6 +200,17 @@ export function AutomationEditor({
   const router = useRouter();
   const toast = useToast();
   const [pending, startSave] = useTransition();
+
+  const [posts, setPosts] = useState<PostView[]>(initialPosts);
+  const [refreshing, startRefresh] = useTransition();
+  const refreshPosts = () =>
+    startRefresh(async () => {
+      try {
+        setPosts(await refreshPostList());
+      } catch {
+        toast("Não deu pra atualizar agora. Tente de novo em instantes.");
+      }
+    });
 
   const [d, setD] = useState<AutomationDraft>(initial);
   const [step, setStep] = useState(0);
@@ -564,35 +611,17 @@ export function AutomationEditor({
                         Ainda não carregamos seus posts. Volte em instantes ou escolha &quot;Todos os posts&quot;.
                       </div>
                     ) : (
-                      <div className="grid grid-cols-[repeat(auto-fill,minmax(96px,1fr))] gap-2">
-                        {posts.map((p) => {
-                          const sel = d.postIds.includes(p.id);
-                          return (
-                            <button
-                              key={p.id}
-                              type="button"
-                              aria-pressed={sel}
-                              onClick={() =>
-                                up({
-                                  postIds: sel ? d.postIds.filter((x) => x !== p.id) : [...d.postIds, p.id],
-                                })
-                              }
-                              className="relative aspect-[4/5] cursor-pointer overflow-hidden rounded-xl border-[3px] bg-transparent p-0"
-                              style={{ borderColor: sel ? "var(--color-accent)" : "transparent" }}
-                            >
-                              <div className="absolute inset-0 overflow-hidden rounded-[9px]">
-                                <PostThumb post={p} />
-                              </div>
-                              <span
-                                className="absolute top-1.5 left-1.5 flex h-6 w-6 items-center justify-center rounded-full border-2 border-white text-[13px] font-bold shadow-[0_1px_3px_rgba(0,0,0,.25)]"
-                                style={{ background: sel ? "var(--color-accent)" : "rgba(255,252,247,0.5)" }}
-                              >
-                                {sel ? "✓" : ""}
-                              </span>
-                            </button>
-                          );
-                        })}
-                      </div>
+                      <PickGrid
+                        items={posts}
+                        selected={d.postIds}
+                        onToggle={(id) =>
+                          up({
+                            postIds: d.postIds.includes(id) ? d.postIds.filter((x) => x !== id) : [...d.postIds, id],
+                          })
+                        }
+                        onRefresh={refreshPosts}
+                        refreshing={refreshing}
+                      />
                     )}
                     {er("postIds") ? (
                       <span className="text-[13px] font-medium text-danger">{er("postIds")}</span>
