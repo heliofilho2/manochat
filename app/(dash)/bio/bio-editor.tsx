@@ -2,6 +2,24 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import {
+  closestCenter,
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { BioPage } from "@/components/bio-page";
 import { FONT_LABELS } from "@/components/bio-fonts";
 import { ScaledPhone } from "@/components/scaled-phone";
@@ -80,6 +98,37 @@ function Card({ children }: { children: React.ReactNode }) {
 const H2 = ({ children }: { children: React.ReactNode }) => (
   <h2 className="m-0 text-xl leading-[1.2] font-bold tracking-[-0.02em]">{children}</h2>
 );
+
+/** One reorderable row; `children` receives the props for the drag handle. */
+function SortableRow({
+  id,
+  className,
+  style,
+  children,
+}: {
+  id: string;
+  className?: string;
+  style?: React.CSSProperties;
+  children: (handle: React.HTMLAttributes<HTMLElement>) => React.ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  return (
+    <div
+      ref={setNodeRef}
+      className={className}
+      style={{
+        ...style,
+        transform: CSS.Transform.toString(transform),
+        transition,
+        position: "relative",
+        zIndex: isDragging ? 10 : undefined,
+        boxShadow: isDragging ? "0 12px 28px rgba(27,23,18,.18)" : undefined,
+      }}
+    >
+      {children({ ...attributes, ...listeners })}
+    </div>
+  );
+}
 
 /** A collapsible group, so the Design tab isn't one endless page. */
 function Group({
@@ -316,6 +365,19 @@ export function BioEditor({
     [o[i], o[j]] = [o[j], o[i]];
     ch({ order: o });
   };
+  // Touch needs a short press so scrolling the list still works.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+  const onDragEnd = ({ active, over }: DragEndEvent) => {
+    if (!over || active.id === over.id) return;
+    const from = ids.indexOf(String(active.id));
+    const to = ids.indexOf(String(over.id));
+    if (from < 0 || to < 0) return;
+    ch({ order: arrayMove(ids, from, to) });
+  };
   const setManual = (id: string, p: Partial<BioSettings["manual"][number]>) =>
     ch({ manual: s.manual.map((m) => (m.id === id ? { ...m, ...p } : m)) });
 
@@ -457,17 +519,31 @@ export function BioEditor({
                     Nenhum botão ainda. Ative uma automação ou adicione um link.
                   </div>
                 ) : null}
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+                <SortableContext items={ids} strategy={verticalListSortingStrategy}>
                 {items.map((it, i) => {
                   const isAuto = it.kind === "auto";
                   const isHeading = it.kind === "heading";
                   const m = s.manual.find((x) => x.id === it.id);
                   return (
-                    <div
+                    <SortableRow
                       key={it.id}
+                      id={it.id}
                       className="flex flex-col gap-2.5 rounded-[14px] border border-line p-2.5"
                       style={{ background: it.hidden ? "var(--color-bg)" : "#fff", opacity: it.hidden ? 0.6 : 1 }}
                     >
+                      {(handle) => (
+                      <>
                       <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          aria-label="Arrastar para reordenar"
+                          title="Arraste para reordenar"
+                          {...handle}
+                          className="flex h-10 w-7 shrink-0 cursor-grab touch-none items-center justify-center border-none bg-transparent text-lg text-muted active:cursor-grabbing"
+                        >
+                          ⠿
+                        </button>
                         <div className="flex flex-col">
                           <button
                             type="button"
@@ -546,9 +622,13 @@ export function BioEditor({
                           ) : null}
                         </div>
                       ) : null}
-                    </div>
+                      </>
+                      )}
+                    </SortableRow>
                   );
                 })}
+                </SortableContext>
+                </DndContext>
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"

@@ -34,4 +34,9 @@ describe("bio items", () => {
     expect(safeUrl("javascript:alert(1)")).toBeNull();
     expect(safeUrl("nope")).toBeNull();
   });
+
+  it("reads a link typed without the scheme as https", () => {
+    expect(safeUrl("www.heliofilho.dev/cofre/x")).toBe("https://www.heliofilho.dev/cofre/x");
+    expect(safeUrl("site.com")).toBe("https://site.com/");
+  });
 });

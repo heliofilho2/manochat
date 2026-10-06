@@ -246,10 +246,12 @@ export function buildItems(b: BioSettings, autos: AutoLike[]): BioItem[] {
   return all.sort((x, y) => ix(x.id) - ix(y.id)).map((it) => ({ ...it, hidden: b.hidden.includes(it.id) }));
 }
 
-/** Only http(s) links may be stored/redirected to. */
+/** Only http(s) links may be stored/redirected to. A bare "site.com/x" is read as https. */
 export function safeUrl(url: string): string | null {
   try {
-    const u = new URL(url.trim());
+    let raw = url.trim();
+    if (!/^[a-z][a-z0-9+.-]*:/i.test(raw) && /^[^\s/]+\.[^\s/]+/.test(raw)) raw = `https://${raw}`;
+    const u = new URL(raw);
     return u.protocol === "http:" || u.protocol === "https:" ? u.toString() : null;
   } catch {
     return null;
