@@ -6,6 +6,7 @@ import {
   contact,
   conversation,
   db,
+  flow,
   lead,
   message,
   tapEvent,
@@ -37,6 +38,8 @@ import {
   isWindowOpen,
   parseUnlockPayload,
 } from "./flow";
+import { resumeFromTap, startFlowRun } from "@/lib/flow/runner";
+import { parseFlowPayload } from "@/lib/flow/message";
 import { findMatch, pickReply, type MatchableAutomation } from "./matcher";
 import {
   DEFAULT_EMAIL_PROMPT,
@@ -140,8 +143,9 @@ async function handlePostback(acct: Account, event: MessagingEvent) {
   const postback = event.postback!;
   if (event.sender.id === acct.igUserId) return;
 
-  const automationId = parseUnlockPayload(postback.payload);
-  if (!automationId) return;
+  const flowTap = parseFlowPayload(postback.payload);
+  const automationId = flowTap ? null : parseUnlockPayload(postback.payload);
+  if (!flowTap && !automationId) return;
 
   const igsid = event.sender.id;
   const at = new Date(event.timestamp);
@@ -178,14 +182,25 @@ async function handlePostback(acct: Account, event: MessagingEvent) {
     .returning({ id: message.id });
   if (claimed.length === 0) return;
 
+  if (flowTap) {
+    try {
+      await resumeFromTap(acct, flowTap, igsid, at);
+    } catch (error) {
+      // Release the claim so the sweeper's retry is not mistaken for a duplicate.
+      await db.delete(message).where(eq(message.id, `pb:${postback.mid}`));
+      throw error;
+    }
+    return;
+  }
+
   try {
-    const outcome = await unlock(acct, automationId, igsid, at);
+    const outcome = await unlock(acct, automationId!, igsid, at);
     // Funnel bookkeeping. Never lets a stats failure undo a delivered link.
     await db
       .insert(tapEvent)
       .values({
         accountId: acct.id,
-        automationId: outcome === "no_rule" ? null : automationId,
+        automationId: outcome === "no_rule" ? null : automationId!,
         igId: igsid,
         outcome: outcome === "not_follower" ? "asked_follow" : outcome,
         createdAt: at,
@@ -293,6 +308,24 @@ async function handleComment(acct: Account, value: CommentValue) {
 
   const commentedAt = value.timestamp ? new Date(value.timestamp) : new Date();
   const mediaId = value.media?.id ?? null;
+
+  // A live flow that matches wins over a plain automation.
+  const flows = await db
+    .select()
+    .from(flow)
+    .where(and(eq(flow.accountId, acct.id), eq(flow.status, "live")))
+    .orderBy(desc(flow.createdAt));
+  const flowMatch = findMatch(flows, { text: value.text ?? "", mediaId, commentedAt });
+  if (flowMatch) {
+    const flowRow = flows.find((f) => f.id === flowMatch.automation.id)!;
+    await startFlowRun(acct, flowRow, {
+      igsid: commenterId,
+      username: value.from?.username ?? null,
+      commentId: value.id,
+      at: commentedAt,
+    });
+    return;
+  }
 
   const candidates = (await db
     .select()

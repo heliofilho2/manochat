@@ -19,6 +19,7 @@ export interface ShellAccount {
 const NAV = [
   { href: "/painel", label: "Painel", tab: "Painel", Icon: IconDashboard },
   { href: "/automacoes", label: "Automações", tab: "Automações", Icon: IconBolt },
+  { href: "/fluxos", label: "Fluxos", tab: "Fluxos", Icon: IconBolt },
   { href: "/entrada", label: "Caixa de entrada", tab: "Entrada", Icon: IconInbox },
   { href: "/leads", label: "Leads", tab: "Leads", Icon: IconUsers },
   { href: "/bio", label: "Minha página de bio", tab: "Bio", Icon: IconLink },

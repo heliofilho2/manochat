@@ -1,3 +1,4 @@
+import type { FlowGraph } from "@/lib/flow/graph";
 import {
   boolean,
   index,
@@ -446,4 +447,86 @@ export const bioView = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("bio_view_account_time_idx").on(t.accountId, t.createdAt)],
+);
+
+/* ────────────────────────────────────────────────────────────────────────
+ * Flow — a visual, multi-step automation (blocks and arrows).
+ *
+ * The trigger columns mirror `automation` on purpose: they satisfy
+ * MatchableAutomation, so comments are matched with the same findMatch().
+ * A live flow that matches a comment wins over a plain automation.
+ * ──────────────────────────────────────────────────────────────────────── */
+export const flow = pgTable(
+  "flow",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => account.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    /** draft | live | paused — only `live` flows fire. */
+    status: text("status").notNull().default("draft"),
+
+    keywords: jsonb("keywords").$type<string[]>().notNull().default([]),
+    matchMode: text("match_mode").notNull().default("exact_word"),
+    scope: text("scope").notNull().default("all_posts"),
+    postIds: jsonb("post_ids").$type<string[]>().notNull().default([]),
+    appliesFrom: timestamp("applies_from", { withTimezone: true }),
+
+    /** Optional public reply under the comment, same idea as `automation`. */
+    replyEnabled: boolean("reply_enabled").notNull().default(false),
+    replyVariants: jsonb("reply_variants").$type<string[]>().notNull().default([]),
+
+    /** Nodes, edges and canvas positions (see lib/flow/graph.ts). */
+    graph: jsonb("graph").$type<FlowGraph>().notNull(),
+
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("flow_account_status_idx").on(t.accountId, t.status)],
+);
+
+/* ────────────────────────────────────────────────────────────────────────
+ * Flow run — one person's walk through one flow. It is the saved state that
+ * lets a flow stop at a button or a delay and continue later.
+ * ──────────────────────────────────────────────────────────────────────── */
+export const flowRun = pgTable(
+  "flow_run",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    flowId: uuid("flow_id")
+      .notNull()
+      .references(() => flow.id, { onDelete: "cascade" }),
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => account.id, { onDelete: "cascade" }),
+    igId: text("ig_id").notNull(),
+    username: text("username"),
+
+    /** UNIQUE. The comment id that started the run: one run per comment, however often Meta retries. */
+    triggerRef: text("trigger_ref").notNull(),
+    /** Comment to Private Reply to. Meta allows that once, so `privateReplyUsed` flips on the first send. */
+    commentId: text("comment_id"),
+    privateReplyUsed: boolean("private_reply_used").notNull().default(false),
+
+    /** running | waiting_tap | waiting_delay | done | failed */
+    status: text("status").notNull().default("running"),
+    /** The block to run next (running/waiting_delay) or the one whose button we await (waiting_tap). */
+    currentNodeId: text("current_node_id"),
+    resumeAt: timestamp("resume_at", { withTimezone: true }),
+    /** Per-run memory, e.g. which A/B branch was drawn: { branches: { [nodeId]: branchId } }. */
+    variables: jsonb("variables")
+      .$type<{ branches: Record<string, string> }>()
+      .notNull()
+      .default({ branches: {} }),
+    lastError: text("last_error"),
+
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("flow_run_trigger_ref_idx").on(t.triggerRef),
+    index("flow_run_due_idx").on(t.status, t.resumeAt),
+    index("flow_run_flow_time_idx").on(t.flowId, t.createdAt),
+  ],
 );

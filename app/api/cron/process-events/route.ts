@@ -4,6 +4,7 @@ import { db, webhookEvent } from "@/db";
 import { processEvent } from "@/lib/automation/processor";
 import { isAuthorizedCron } from "@/lib/cron-auth";
 import { runHealthCheck } from "@/lib/health-server";
+import { resumeDueRuns } from "@/lib/flow/runner";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -62,9 +63,17 @@ export async function GET(request: NextRequest) {
       await new Promise((resolve) => setTimeout(resolve, 550));
     }
 
+    // Flow runs whose wait (delay block) is over.
+    let flowsResumed = 0;
+    try {
+      flowsResumed = await resumeDueRuns();
+    } catch (error) {
+      console.error("[cron] flow resume failed", error);
+    }
+
     // Every sweep doubles as the health check (alerts are rate-limited per issue).
     const health = await runHealthCheck();
-    console.log("[cron] process-events", { found: pending.length, processed, health });
+    console.log("[cron] process-events", { found: pending.length, processed, flowsResumed, health });
   });
 
   return NextResponse.json({ found: pending.length, started: true });
