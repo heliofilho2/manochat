@@ -4,7 +4,8 @@ import { redirect } from "next/navigation";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db, flow } from "@/db";
-import { EMPTY_GRAPH, MAX_BUTTONS, validateGraph, type FlowGraph } from "@/lib/flow/graph";
+import { MAX_BUTTONS, validateGraph, type FlowGraph } from "@/lib/flow/graph";
+import { templateById } from "@/lib/flow/templates";
 import { getSession } from "@/lib/session";
 
 const id = z.string().max(40);
@@ -16,6 +17,7 @@ const node = z.discriminatedUnion("type", [
     type: z.literal("message"),
     data: z.object({
       text: z.string().max(1000),
+      imageUrl: z.string().max(500).optional(),
       buttons: z
         .array(z.object({ id, label: z.string().max(60), url: z.string().max(500).optional() }))
         .max(MAX_BUTTONS + 2),
@@ -35,6 +37,7 @@ const node = z.discriminatedUnion("type", [
       check: z.union([
         z.object({ kind: z.literal("has_tag"), tag: z.string().max(60) }),
         z.object({ kind: z.literal("is_follower") }),
+        z.object({ kind: z.literal("clicked") }),
       ]),
     }),
   }),
@@ -43,6 +46,16 @@ const node = z.discriminatedUnion("type", [
     id,
     type: z.literal("action"),
     data: z.object({ op: z.enum(["add_tag", "remove_tag"]), tag: z.string().max(60) }),
+  }),
+  z.object({
+    id,
+    type: z.literal("reply"),
+    data: z.object({
+      expect: z.enum(["keyword", "any", "email", "phone"]),
+      keywords: z.array(z.string().max(60)).max(20),
+      retryText: z.string().max(640),
+      timeoutMinutes: z.number().min(0).max(100_000).nullable(),
+    }),
   }),
 ]);
 
@@ -56,6 +69,7 @@ const graphSchema = z.object({
 
 const schema = z.object({
   name: z.string().trim().min(1).max(80),
+  triggerKind: z.enum(["comment", "story", "dm"]),
   keywords: z.array(z.string().trim().min(1).max(60)).max(20),
   matchMode: z.enum(["exact_word", "contains"]),
   scope: z.enum(["all_posts", "specific_posts"]),
@@ -73,21 +87,37 @@ async function requireSession() {
   return session;
 }
 
-export async function createFlow(): Promise<never> {
+export async function createFlow(templateId: string): Promise<never> {
   const session = await requireSession();
+  const t = templateById(templateId);
   const [row] = await db
     .insert(flow)
-    .values({ accountId: session.accountId, name: "Novo fluxo", graph: EMPTY_GRAPH })
+    .values({
+      accountId: session.accountId,
+      name: t.name,
+      triggerKind: t.triggerKind,
+      keywords: t.keywords,
+      graph: t.graph,
+    })
     .returning({ id: flow.id });
   redirect(`/fluxos/${row.id}`);
 }
 
 /** What stops a flow from going live; empty means it can. */
-function liveBlockers(input: { keywords: string[]; scope: string; postIds: string[]; graph: FlowGraph }): string[] {
+function liveBlockers(input: {
+  triggerKind: string;
+  keywords: string[];
+  scope: string;
+  postIds: string[];
+  graph: FlowGraph;
+}): string[] {
   const problems: string[] = [];
-  if (input.keywords.length === 0) problems.push("Defina pelo menos uma palavra-chave no gatilho.");
+  // A story flow may fire on any reply; comments and DMs need a word to listen for.
+  if (input.keywords.length === 0 && input.triggerKind !== "story") {
+    problems.push("Defina pelo menos uma palavra-chave no gatilho.");
+  }
   if (input.scope === "specific_posts" && input.postIds.length === 0) {
-    problems.push("Escolha pelo menos um post, ou use “todos os posts”.");
+    problems.push(input.triggerKind === "story" ? "Escolha pelo menos um story, ou use “todos”." : "Escolha pelo menos um post, ou use “todos os posts”.");
   }
   if (!input.graph.nodes.some((n) => n.type === "message")) problems.push("Adicione pelo menos uma mensagem.");
   problems.push(...validateGraph(input.graph).map((i) => i.message));

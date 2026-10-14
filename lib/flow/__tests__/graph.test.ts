@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   EMPTY_GRAPH,
+  evaluateReply,
+  flowWarnings,
+  homeOf,
   nextNodeId,
   outputHandles,
   pickBranch,
@@ -100,7 +103,7 @@ describe("flow graph", () => {
       nodes: [{ id: "t", type: "trigger", data: {} }],
       edges: [{ id: "e", source: "t", sourceHandle: null, target: "ghost" }],
     };
-    expect(messages(dangling)).toContain("Seta ligada a um bloco que não existe.");
+    expect(messages(dangling)).toContain("Ligação com um bloco que não existe.");
 
     const stale: FlowGraph = {
       nodes: [
@@ -109,7 +112,7 @@ describe("flow graph", () => {
       ],
       edges: [{ id: "e", source: "m", sourceHandle: "old-button", target: "t" }],
     };
-    expect(messages(stale)).toContain("Seta saindo de uma saída que não existe mais.");
+    expect(messages(stale)).toContain("Ligação saindo de uma saída que não existe mais.");
 
     const twice: FlowGraph = {
       nodes: [
@@ -160,5 +163,92 @@ describe("flow graph", () => {
     };
     expect(unreachableNodeIds(g)).toEqual(["orphan"]);
     expect(unreachableNodeIds(abTest)).toEqual([]);
+  });
+});
+
+describe("reply blocks", () => {
+  const reply = (expect: "keyword" | "any" | "email" | "phone", timeoutMinutes: number | null = null) => ({
+    id: "r",
+    type: "reply" as const,
+    data: { expect, keywords: ["material"], retryText: "", timeoutMinutes },
+  });
+
+  it("exposes the right outputs", () => {
+    expect(outputHandles(reply("any"))).toEqual(["match"]);
+    expect(outputHandles(reply("keyword"))).toEqual(["match", "other"]);
+    expect(outputHandles(reply("email", 60))).toEqual(["match", "other", "timeout"]);
+  });
+
+  it("checks the answer", () => {
+    expect(evaluateReply(reply("keyword"), "MATERIAL!!").handle).toBe("match");
+    expect(evaluateReply(reply("keyword"), "quero o materiaaal").handle).toBe("other");
+    expect(evaluateReply(reply("any"), "qualquer coisa")).toEqual({ handle: "match", value: "qualquer coisa" });
+    expect(evaluateReply(reply("email"), "é ana@x.com")).toEqual({ handle: "match", value: "ana@x.com" });
+    expect(evaluateReply(reply("email"), "não tenho")).toEqual({ handle: "other", value: null });
+    expect(evaluateReply(reply("phone"), "(31) 99999-8888")).toEqual({ handle: "match", value: "31999998888" });
+  });
+
+  it("requires the word when waiting for a keyword", () => {
+    const g: FlowGraph = {
+      nodes: [{ id: "t", type: "trigger", data: {} }, { ...reply("keyword"), data: { ...reply("keyword").data, keywords: [] } }],
+      edges: [{ id: "e", source: "t", sourceHandle: null, target: "r" }],
+    };
+    expect(validateGraph(g).map((i) => i.message)).toContain("Diga qual palavra a pessoa deve responder.");
+  });
+});
+
+describe("builder layout and warnings", () => {
+  const msg = (id: string, buttons: { id: string; label: string; url?: string }[] = []) => ({
+    id,
+    type: "message" as const,
+    data: { text: id, buttons },
+  });
+
+  it("draws each block once, under the first output that reaches it", () => {
+    const g: FlowGraph = {
+      nodes: [{ id: "t", type: "trigger", data: {} }, msg("a", [{ id: "x", label: "X" }, { id: "y", label: "Y" }]), msg("b")],
+      edges: [
+        { id: "1", source: "t", sourceHandle: null, target: "a" },
+        { id: "2", source: "a", sourceHandle: "x", target: "b" },
+        { id: "3", source: "a", sourceHandle: "y", target: "b" },
+      ],
+    };
+    const home = homeOf(g);
+    expect(home.get("a")).toBe("t:next");
+    expect(home.get("b")).toBe("a:x");
+  });
+
+  it("warns about two messages in a row after a comment, but not after a story reply", () => {
+    const g: FlowGraph = {
+      nodes: [{ id: "t", type: "trigger", data: {} }, msg("a"), msg("b")],
+      edges: [
+        { id: "1", source: "t", sourceHandle: null, target: "a" },
+        { id: "2", source: "a", sourceHandle: null, target: "b" },
+      ],
+    };
+    expect(flowWarnings(g, "comment")).toHaveLength(1);
+    expect(flowWarnings(g, "story")).toEqual([]);
+  });
+
+  it("accepts the confirm-word pattern after a comment", () => {
+    const g: FlowGraph = {
+      nodes: [
+        { id: "t", type: "trigger", data: {} },
+        msg("ask"),
+        { id: "r", type: "reply", data: { expect: "keyword", keywords: ["x"], retryText: "", timeoutMinutes: null } },
+        msg("give"),
+        { id: "d", type: "delay", data: { minutes: 120 } },
+        msg("check", [{ id: "ok", label: "Consegui" }]),
+      ],
+      edges: [
+        { id: "1", source: "t", sourceHandle: null, target: "ask" },
+        { id: "2", source: "ask", sourceHandle: null, target: "r" },
+        { id: "3", source: "r", sourceHandle: "match", target: "give" },
+        { id: "4", source: "give", sourceHandle: null, target: "d" },
+        { id: "5", source: "d", sourceHandle: null, target: "check" },
+      ],
+    };
+    expect(flowWarnings(g, "comment")).toEqual([]);
+    expect(validateGraph(g)).toEqual([]);
   });
 });

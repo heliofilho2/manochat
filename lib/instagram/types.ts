@@ -62,7 +62,8 @@ export type OutboundMessage =
         type: "template";
         payload: { template_type: "button"; text: string; buttons: Button[] };
       };
-    };
+    }
+  | { attachment: { type: "image"; payload: { url: string } } };
 
 export interface IgMedia {
   id: string;

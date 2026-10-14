@@ -1,4 +1,17 @@
 import type { FlowGraph } from "@/lib/flow/graph";
+
+export interface FlowRunVars {
+  /** nodeId → branchId drawn by a "random" block. */
+  branches: Record<string, string>;
+  /** Blocks walked, in order (a block may repeat in a loop). */
+  path?: string[];
+  /** "nodeId.buttonId" of every link the person opened. */
+  clicks?: string[];
+  /** nodeId → what the person answered to a "reply" block. */
+  answers?: Record<string, string>;
+  /** Lead row created from an e-mail / phone answer. */
+  leadId?: string;
+}
 import {
   boolean,
   index,
@@ -466,6 +479,8 @@ export const flow = pgTable(
     name: text("name").notNull(),
     /** draft | live | paused — only `live` flows fire. */
     status: text("status").notNull().default("draft"),
+    /** comment | story | dm — what starts the flow (see lib/flow/graph.ts). */
+    triggerKind: text("trigger_kind").notNull().default("comment"),
 
     keywords: jsonb("keywords").$type<string[]>().notNull().default([]),
     matchMode: text("match_mode").notNull().default("exact_word"),
@@ -509,14 +524,14 @@ export const flowRun = pgTable(
     commentId: text("comment_id"),
     privateReplyUsed: boolean("private_reply_used").notNull().default(false),
 
-    /** running | waiting_tap | waiting_delay | done | failed */
+    /** running | waiting_tap | waiting_reply | waiting_delay | done | failed */
     status: text("status").notNull().default("running"),
     /** The block to run next (running/waiting_delay) or the one whose button we await (waiting_tap). */
     currentNodeId: text("current_node_id"),
     resumeAt: timestamp("resume_at", { withTimezone: true }),
-    /** Per-run memory, e.g. which A/B branch was drawn: { branches: { [nodeId]: branchId } }. */
+    /** Per-run memory: A/B draws, blocks walked, links opened, answers given. */
     variables: jsonb("variables")
-      .$type<{ branches: Record<string, string> }>()
+      .$type<FlowRunVars>()
       .notNull()
       .default({ branches: {} }),
     lastError: text("last_error"),
@@ -528,5 +543,6 @@ export const flowRun = pgTable(
     uniqueIndex("flow_run_trigger_ref_idx").on(t.triggerRef),
     index("flow_run_due_idx").on(t.status, t.resumeAt),
     index("flow_run_flow_time_idx").on(t.flowId, t.createdAt),
+    index("flow_run_contact_idx").on(t.accountId, t.igId, t.status),
   ],
 );

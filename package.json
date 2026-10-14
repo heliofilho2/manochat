@@ -20,7 +20,6 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@neondatabase/serverless": "^1.1.0",
-    "@xyflow/react": "^12.12.0",
     "drizzle-orm": "^0.45.2",
     "jose": "^6.2.10",
     "next": "16.3.3",

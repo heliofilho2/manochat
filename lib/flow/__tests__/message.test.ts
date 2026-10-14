@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { branchTagName, buildFlowMessage, buildFlowPayload, parseFlowPayload } from "../message";
+import {
+  branchTagName,
+  buildFlowMessage,
+  buildFlowPayload,
+  buildImageMessage,
+  parseFlowPayload,
+  parseTrackedLinkId,
+  trackedLinkId,
+} from "../message";
 
 const node = (buttons: { id: string; label: string; url?: string }[], text = "Oi!") => ({
   id: "m1",
@@ -52,12 +60,47 @@ describe("flow messages", () => {
 
   it("clips long text and titles to Meta's limits", () => {
     const msg = buildFlowMessage(node([{ id: "b", label: "a".repeat(30) }], "x".repeat(700)), "r");
-    if (!("attachment" in msg)) throw new Error("expected template");
+    if (!("attachment" in msg) || msg.attachment.type !== "template") throw new Error("expected template");
     expect(msg.attachment.payload.text).toHaveLength(640);
     expect(msg.attachment.payload.buttons[0].title).toHaveLength(20);
   });
 
   it("names branch tags predictably", () => {
     expect(branchTagName("Teste  Book", "R$7,90")).toBe("ab:teste book:r$7,90");
+  });
+
+  it("routes link buttons through the click tracker when a base URL is known", () => {
+    const msg = buildFlowMessage(node([{ id: "b2", label: "Comprar", url: "https://pay.com/x" }]), "11111111-2222-3333-4444-555555555555", {
+      baseUrl: "https://app.oslinke.com",
+      username: null,
+    });
+    if (!("attachment" in msg) || msg.attachment.type !== "template") throw new Error("expected template");
+    expect(msg.attachment.payload.buttons[0]).toEqual({
+      type: "web_url",
+      title: "Comprar",
+      url: "https://app.oslinke.com/r/f-11111111-2222-3333-4444-555555555555.m1.b2",
+    });
+  });
+
+  it("round-trips a tracked link id", () => {
+    const tap = { runId: "11111111-2222-3333-4444-555555555555", nodeId: "m1", buttonId: "b2" };
+    expect(parseTrackedLinkId(trackedLinkId(tap))).toEqual(tap);
+    expect(parseTrackedLinkId("m-abc.def")).toBeNull();
+  });
+
+  it("fills {usuario} with the person's @", () => {
+    expect(buildFlowMessage(node([], "Oi {usuario}, tudo bem?"), "r", { baseUrl: null, username: "ana" })).toEqual({
+      text: "Oi @ana, tudo bem?",
+    });
+    expect(buildFlowMessage(node([], "Oi {usuario}, tudo bem?"), "r", { baseUrl: null, username: null })).toEqual({
+      text: "Oi , tudo bem?",
+    });
+  });
+
+  it("builds the image that goes before the text", () => {
+    expect(buildImageMessage({ id: "m", type: "message", data: { text: "x", buttons: [], imageUrl: "site.com/a.jpg" } })).toEqual({
+      attachment: { type: "image", payload: { url: "https://site.com/a.jpg" } },
+    });
+    expect(buildImageMessage(node([]))).toBeNull();
   });
 });

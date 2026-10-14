@@ -4,6 +4,8 @@ import { account, automation, bioConfig, db, igPost, linkClick } from "@/db";
 import { classifyDevice, isBot } from "@/lib/bio/analytics";
 import { destinationFor, withUtm } from "@/lib/bio/links";
 import { safeUrl } from "@/lib/bio/theme";
+import { parseTrackedLinkId } from "@/lib/flow/message";
+import { recordFlowClick } from "@/lib/flow/runner";
 
 const UUID = /^[0-9a-f-]{36}$/i;
 
@@ -13,9 +15,18 @@ const UUID = /^[0-9a-f-]{36}$/i;
  *   /r/a-<automationId>            → the automation's post (or the profile)
  *   /r/p-<mediaId>                 → a recent post's permalink
  *   /r/m-<accountId>.<manualId>    → a manual link from the bio settings
+ *   /r/f-<runId>.<nodeId>.<btnId>  → a link button sent by a flow
  */
 export async function GET(req: Request, ctx: RouteContext<"/r/[id]">) {
   const { id } = await ctx.params;
+
+  if (id.startsWith("f-")) {
+    const tap = parseTrackedLinkId(id);
+    const ua = req.headers.get("user-agent") ?? "";
+    const dest = tap ? await recordFlowClick(tap, { device: classifyDevice(ua), count: !isBot(ua) }) : null;
+    return dest ? NextResponse.redirect(dest, 302) : new NextResponse("Not found", { status: 404 });
+  }
+
   const kind = id.slice(0, 2);
   const ref = id.slice(2);
   let accountId: string | null = null;

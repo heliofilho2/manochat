@@ -38,9 +38,9 @@ import {
   isWindowOpen,
   parseUnlockPayload,
 } from "./flow";
-import { resumeFromTap, startFlowRun } from "@/lib/flow/runner";
+import { resumeFromReply, resumeFromTap, startFlowRun } from "@/lib/flow/runner";
 import { parseFlowPayload } from "@/lib/flow/message";
-import { findMatch, pickReply, type MatchableAutomation } from "./matcher";
+import { findMatch, matchKeyword, pickReply, type MatchableAutomation, type MatchMode } from "./matcher";
 import {
   DEFAULT_EMAIL_PROMPT,
   DEFAULT_PHONE_PROMPT,
@@ -313,7 +313,7 @@ async function handleComment(acct: Account, value: CommentValue) {
   const flows = await db
     .select()
     .from(flow)
-    .where(and(eq(flow.accountId, acct.id), eq(flow.status, "live")))
+    .where(and(eq(flow.accountId, acct.id), eq(flow.status, "live"), eq(flow.triggerKind, "comment")))
     .orderBy(desc(flow.createdAt));
   const flowMatch = findMatch(flows, { text: value.text ?? "", mediaId, commentedAt });
   if (flowMatch) {
@@ -321,6 +321,7 @@ async function handleComment(acct: Account, value: CommentValue) {
     await startFlowRun(acct, flowRow, {
       igsid: commenterId,
       username: value.from?.username ?? null,
+      triggerRef: value.id,
       commentId: value.id,
       at: commentedAt,
     });
@@ -538,8 +539,46 @@ async function handleInboundMessage(acct: Account, event: MessagingEvent) {
   // Anything the person sends reopens the 24h window.
   await touchContact(acct.id, event.sender.id, null, at);
 
+  // Someone answering a flow's question: the flow owns this message.
+  if (msg.text && (await resumeFromReply(acct, event.sender.id, msg.text, msg.mid, at))) return;
+
+  if (await startInboundFlow(acct, event)) return;
   if (msg.reply_to?.story) await handleStoryReply(acct, event);
   else await handleLeadAnswer(acct, event);
+}
+
+/**
+ * Story replies and DMs can start a flow. A live flow that matches wins over
+ * the plain story automation / lead questions, like comments do.
+ */
+async function startInboundFlow(acct: Account, event: MessagingEvent): Promise<boolean> {
+  const msg = event.message!;
+  const storyId = msg.reply_to?.story ? (msg.reply_to.story.id ?? null) : undefined;
+  const kind = storyId === undefined ? "dm" : "story";
+  const text = msg.text ?? "";
+
+  const flows = await db
+    .select()
+    .from(flow)
+    .where(and(eq(flow.accountId, acct.id), eq(flow.status, "live"), eq(flow.triggerKind, kind)))
+    .orderBy(desc(flow.createdAt));
+
+  const hit = flows.find((f) => {
+    if (kind === "story" && f.scope === "specific_posts" && (!storyId || !f.postIds.includes(storyId))) return false;
+    // A story flow with no words fires on any reply or reaction; a DM flow always needs a word.
+    if (f.keywords.length === 0) return kind === "story";
+    return matchKeyword(text, f.keywords, f.matchMode as MatchMode) !== null;
+  });
+  if (!hit) return false;
+
+  await startFlowRun(acct, hit, {
+    igsid: event.sender.id,
+    username: null,
+    triggerRef: `${kind}:${msg.mid}`,
+    commentId: null,
+    at: new Date(event.timestamp),
+  });
+  return true;
 }
 
 async function handleStoryReply(acct: Account, event: MessagingEvent) {

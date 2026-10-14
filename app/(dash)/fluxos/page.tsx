@@ -3,12 +3,12 @@ import { redirect } from "next/navigation";
 import { desc, eq, sql } from "drizzle-orm";
 import { db, flow, flowRun } from "@/db";
 import { getSession } from "@/lib/session";
-import { createFlow } from "./actions";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Fluxos — Oslinke" };
 
 const STATUS_LABEL: Record<string, string> = { draft: "Rascunho", live: "No ar", paused: "Pausado" };
+const TRIGGER_LABEL: Record<string, string> = { comment: "Comentário", story: "Resposta ao story", dm: "Palavra no direct" };
 
 export default async function FlowsPage() {
   const session = await getSession();
@@ -19,9 +19,10 @@ export default async function FlowsPage() {
       id: flow.id,
       name: flow.name,
       status: flow.status,
+      triggerKind: flow.triggerKind,
       keywords: flow.keywords,
       runs: sql<number>`(select count(*)::int from ${flowRun} where "flow_run"."flow_id" = "flow"."id")`,
-      waiting: sql<number>`(select count(*)::int from ${flowRun} where "flow_run"."flow_id" = "flow"."id" and "flow_run"."status" in ('waiting_tap','waiting_delay'))`,
+      waiting: sql<number>`(select count(*)::int from ${flowRun} where "flow_run"."flow_id" = "flow"."id" and "flow_run"."status" in ('waiting_tap','waiting_reply','waiting_delay'))`,
       failed: sql<number>`(select count(*)::int from ${flowRun} where "flow_run"."flow_id" = "flow"."id" and "flow_run"."status" = 'failed')`,
     })
     .from(flow)
@@ -34,23 +35,21 @@ export default async function FlowsPage() {
         <div className="flex flex-col gap-1.5">
           <h1 className="m-0 text-[clamp(30px,4.5vw,42px)] leading-[1.02] font-bold tracking-[-0.025em]">Fluxos</h1>
           <span className="max-w-[560px] text-[15px] leading-normal text-muted">
-            Monte conversas com vários passos: botões, teste A/B, espera e tags. Se um comentário combina com um fluxo no
-            ar, o fluxo responde no lugar das automações simples.
+            Conversas com vários passos: pedir uma palavra de confirmação, entregar o material, perguntar se deu certo,
+            testar dois preços. Quando um fluxo no ar combina, ele responde no lugar das automações simples.
           </span>
         </div>
-        <form action={createFlow}>
-          <button
-            type="submit"
-            className="h-11 cursor-pointer rounded-xl border-none bg-ink px-5 text-sm font-semibold text-white"
-          >
-            + Novo fluxo
-          </button>
-        </form>
+        <Link
+          href="/fluxos/novo"
+          className="flex h-11 items-center rounded-xl bg-ink px-5 text-sm font-semibold text-white no-underline"
+        >
+          + Novo fluxo
+        </Link>
       </div>
 
       {rows.length === 0 ? (
         <div className="rounded-[20px] border border-line bg-white p-8 text-center text-sm text-muted">
-          Nenhum fluxo ainda. Crie o primeiro para montar o caminho que a pessoa percorre depois de comentar.
+          Nenhum fluxo ainda. Comece por um modelo pronto em “Novo fluxo”.
         </div>
       ) : (
         <div className="flex flex-col gap-2.5">
@@ -63,7 +62,12 @@ export default async function FlowsPage() {
               <div className="flex min-w-0 flex-1 flex-col gap-1">
                 <span className="truncate text-base font-semibold">{r.name}</span>
                 <span className="truncate text-[13px] text-muted">
-                  {r.keywords.length > 0 ? `Comente ${r.keywords.map((k) => k.toUpperCase()).join(", ")}` : "Sem palavra-chave ainda"}
+                  {TRIGGER_LABEL[r.triggerKind] ?? "Comentário"}
+                  {r.keywords.length > 0
+                    ? ` · ${r.keywords.map((k) => k.toUpperCase()).join(", ")}`
+                    : r.triggerKind === "story"
+                      ? " · qualquer resposta"
+                      : " · sem palavra-chave ainda"}
                 </span>
               </div>
               <span className="text-[13px] text-muted">
