@@ -288,10 +288,14 @@ export const igPost = pgTable(
       .references(() => account.id, { onDelete: "cascade" }),
     caption: text("caption"),
     mediaType: text("media_type"),
+    /** "REELS" | "FEED" | "CAROUSEL_CONTAINER" | "STORY" - distingue Reels de post comum. */
+    mediaProductType: text("media_product_type"),
     mediaUrl: text("media_url"),
     thumbnailUrl: text("thumbnail_url"),
     permalink: text("permalink"),
     timestamp: timestamp("timestamp", { withTimezone: true }),
+    /** Plays/views do insights da mídia. Só buscado pros N mais recentes (ver refresh()). */
+    viewsCount: integer("views_count"),
     syncedAt: timestamp("synced_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("ig_post_account_time_idx").on(t.accountId, t.timestamp)],

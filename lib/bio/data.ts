@@ -2,7 +2,7 @@ import "server-only";
 import { and, desc, eq } from "drizzle-orm";
 import { account, automation, bioConfig, db, igPost } from "@/db";
 import { accessTokenFor } from "@/lib/account";
-import { getFollowersCount, getMedia } from "@/lib/instagram/client";
+import { getFollowersCount, getMedia, getMediaReach } from "@/lib/instagram/client";
 import { toPostView } from "@/lib/posts-view";
 import { isStale } from "./links";
 import { buildItems, DEFAULT_BIO, mergeStyle, safeUrl, type BioSettings } from "./theme";
@@ -33,6 +33,7 @@ export async function refresh(acct: typeof account.$inferSelect) {
         accountId: acct.id,
         caption: m.caption ?? null,
         mediaType: m.media_type ?? null,
+        mediaProductType: m.media_product_type ?? null,
         mediaUrl: m.media_url ?? null,
         thumbnailUrl: m.thumbnail_url ?? null,
         permalink: m.permalink ?? null,
@@ -40,6 +41,17 @@ export async function refresh(acct: typeof account.$inferSelect) {
         syncedAt: new Date(),
       };
       await db.insert(igPost).values(values).onConflictDoUpdate({ target: igPost.id, set: values });
+    }
+    // Views só pros Reels mais recentes - a Insights API é uma chamada por mídia, não vale
+    // gastar isso nos 30 itens inteiros a cada refresh.
+    const recentReels = (data ?? []).filter((m) => m.media_product_type === "REELS").slice(0, 8);
+    for (const m of recentReels) {
+      try {
+        const { views } = await getMediaReach(token, m.id);
+        await db.update(igPost).set({ viewsCount: views }).where(eq(igPost.id, m.id));
+      } catch (e) {
+        console.error(`[bio] views refresh failed for ${m.id}`, e);
+      }
     }
   } catch (e) {
     console.error("[bio] media refresh failed", e);

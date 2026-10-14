@@ -75,7 +75,7 @@ export function getMe(token: string) {
 export function getMedia(token: string, limit = 50) {
   return call<{ data: IgMedia[] }>("/me/media", {
     params: {
-      fields: "id,caption,media_type,media_url,thumbnail_url,permalink,timestamp",
+      fields: "id,caption,media_type,media_product_type,media_url,thumbnail_url,permalink,timestamp",
       limit: String(limit),
       access_token: token,
     },

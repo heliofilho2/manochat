@@ -34,6 +34,9 @@ export const env = {
   get cronSecret() {
     return required("CRON_SECRET");
   },
+  get publicApiSecret() {
+    return required("PUBLIC_API_SECRET");
+  },
   get databaseUrl() {
     return required("DATABASE_URL");
   },
