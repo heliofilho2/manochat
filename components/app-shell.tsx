@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { IconBolt, IconChart, IconChevrons, IconDashboard, IconInbox, IconLink, IconUsers, IconWarn } from "./icons";
+import { IconBolt, IconChart, IconChevrons, IconDashboard, IconFlow, IconInbox, IconLink, IconMore, IconUsers, IconWarn } from "./icons";
 import { Logo, LogoMark } from "./logo";
+import { PwaSetup } from "./pwa";
 import { ToastProvider } from "./toast";
 
 export interface ShellAccount {
@@ -19,12 +20,15 @@ export interface ShellAccount {
 const NAV = [
   { href: "/painel", label: "Painel", tab: "Painel", Icon: IconDashboard },
   { href: "/automacoes", label: "Automações", tab: "Automações", Icon: IconBolt },
-  { href: "/fluxos", label: "Fluxos", tab: "Fluxos", Icon: IconBolt },
+  { href: "/fluxos", label: "Fluxos", tab: "Fluxos", Icon: IconFlow },
   { href: "/entrada", label: "Caixa de entrada", tab: "Entrada", Icon: IconInbox },
   { href: "/leads", label: "Leads", tab: "Leads", Icon: IconUsers },
   { href: "/bio", label: "Minha página de bio", tab: "Bio", Icon: IconLink },
   { href: "/bio/metricas", label: "Métricas da bio", tab: "Métricas", Icon: IconChart },
 ] as const;
+
+/** The phone's bottom bar holds these four plus "Mais"; the rest lives in the "Mais" sheet. */
+const TABS: string[] = ["/painel", "/automacoes", "/fluxos", "/entrada"];
 
 function Avatar({ acct, size, ring }: { acct: ShellAccount; size: number; ring: string }) {
   return (
@@ -59,6 +63,7 @@ export function AppShell({
 }) {
   const pathname = usePathname();
   const [menu, setMenu] = useState(false);
+  const [sheet, setSheet] = useState(false);
   const [reconnecting, setReconnecting] = useState(false);
 
   // Most specific match wins, so /bio/metricas does not also light up /bio.
@@ -70,6 +75,7 @@ export function AppShell({
   // The overlay is only feedback; the anchor itself performs the OAuth hop.
   const onReconnect = () => {
     setMenu(false);
+    setSheet(false);
     setReconnecting(true);
   };
 
@@ -137,15 +143,15 @@ export function AppShell({
 
         <main className="flex min-w-0 flex-1 flex-col">
           {/* Topbar (mobile) */}
-          <header className="sticky top-0 z-20 flex h-[60px] items-center justify-between border-b border-line bg-bg px-4 min-[820px]:hidden">
-            <Link href="/painel" className="flex items-center gap-2">
+          <header className="sticky top-0 z-20 flex items-center justify-between border-b border-line bg-bg/90 px-4 pt-[env(safe-area-inset-top)] backdrop-blur-md min-[820px]:hidden">
+            <Link href="/painel" className="flex h-[58px] items-center gap-2">
               <LogoMark size={24} />
               <span className="text-xl leading-none font-bold tracking-[-0.02em]">oslinke</span>
             </Link>
             <button
               type="button"
-              aria-label="Menu da conta"
-              onClick={() => setMenu((v) => !v)}
+              aria-label="Conta e mais opções"
+              onClick={() => setSheet(true)}
               className="flex h-11 w-11 cursor-pointer items-center justify-center border-none bg-transparent p-0"
             >
               <Avatar acct={account} size={36} ring="var(--color-bg)" />
@@ -172,30 +178,107 @@ export function AppShell({
           <div className="mx-auto w-full max-w-[1200px] flex-1 px-[clamp(16px,4vw,40px)] pt-[clamp(20px,4vw,40px)] pb-10">
             {children}
           </div>
-          <div className="h-[76px] min-[820px]:hidden" />
+          <div className="h-[calc(80px+env(safe-area-inset-bottom))] min-[820px]:hidden" />
         </main>
       </div>
 
       {/* Tab bar (mobile) */}
-      <nav className="fixed right-0 bottom-0 left-0 z-30 grid h-[68px] grid-cols-6 border-t border-line bg-white pb-[env(safe-area-inset-bottom)] min-[820px]:hidden">
-        {NAV.map(({ href, tab, Icon }) => {
+      <nav className="fixed right-0 bottom-0 left-0 z-30 grid grid-cols-5 border-t border-line bg-white/95 px-1 pt-1.5 pb-[calc(6px+env(safe-area-inset-bottom))] backdrop-blur-md min-[820px]:hidden">
+        {NAV.filter((n) => TABS.includes(n.href)).map(({ href, tab, Icon }) => {
           const on = isActive(href);
           return (
             <Link
               key={href}
               href={href}
-              className="flex flex-col items-center justify-center gap-1 border-t-2 text-[11px] font-medium"
-              style={{
-                color: on ? "var(--color-ink)" : "var(--color-muted-2)",
-                borderTopColor: on ? "var(--color-accent)" : "transparent",
-              }}
+              className="flex flex-col items-center gap-1 py-1 text-[11px] font-semibold"
+              style={{ color: on ? "var(--color-ink)" : "var(--color-muted-2)" }}
             >
-              <Icon size={22} />
+              <span className="relative flex h-8 w-14 items-center justify-center rounded-full" style={{ background: on ? "var(--color-accent-soft)" : "transparent" }}>
+                <Icon size={22} />
+                {href === "/entrada" && account.inboxBadge > 0 ? (
+                  <span className="absolute -top-0.5 right-1.5 h-[18px] min-w-[18px] rounded-full bg-accent px-1 text-center text-[10px] leading-[18px] font-bold text-ink">
+                    {account.inboxBadge}
+                  </span>
+                ) : null}
+              </span>
               {tab}
             </Link>
           );
         })}
+        <button
+          type="button"
+          onClick={() => setSheet(true)}
+          className="flex cursor-pointer flex-col items-center gap-1 border-none bg-transparent py-1 text-[11px] font-semibold"
+          style={{ color: !TABS.includes(current ?? "") ? "var(--color-ink)" : "var(--color-muted-2)" }}
+        >
+          <span
+            className="flex h-8 w-14 items-center justify-center rounded-full"
+            style={{ background: !TABS.includes(current ?? "") ? "var(--color-accent-soft)" : "transparent" }}
+          >
+            <IconMore size={22} />
+          </span>
+          Mais
+        </button>
       </nav>
+
+      {/* "Mais" sheet (mobile): the other pages and the account. */}
+      {sheet ? (
+        <>
+          <div className="fixed inset-0 z-[60] bg-[rgba(27,23,18,0.35)] min-[820px]:hidden" onClick={() => setSheet(false)} />
+          <div className="fixed inset-x-0 bottom-0 z-[61] flex max-h-[88dvh] animate-up-fast flex-col gap-1 overflow-y-auto rounded-t-[26px] bg-white px-3 pt-2 pb-[calc(16px+env(safe-area-inset-bottom))] shadow-[0_-12px_40px_rgba(27,23,18,.2)] min-[820px]:hidden">
+            <span className="mx-auto mb-2 h-1.5 w-10 rounded-full bg-line" />
+            <div className="mb-1 flex items-center gap-3 rounded-2xl bg-bg px-3 py-3">
+              <Avatar acct={account} size={44} ring="var(--color-bg)" />
+              <div className="flex min-w-0 flex-1 flex-col">
+                <span className="truncate text-[15px] font-bold">@{account.username}</span>
+                <span className="flex items-center gap-1.5 text-xs font-medium" style={{ color: account.expired ? "var(--color-danger)" : "var(--color-success)" }}>
+                  <span className="h-[7px] w-[7px] rounded-full" style={{ background: account.expired ? "var(--color-danger)" : "var(--color-success)" }} />
+                  {account.expired ? "Conexão expirada" : "Instagram conectado"}
+                </span>
+              </div>
+            </div>
+            {NAV.filter((n) => !TABS.includes(n.href)).map(({ href, label, Icon }) => (
+              <Link
+                key={href}
+                href={href}
+                onClick={() => setSheet(false)}
+                className="flex h-[52px] items-center gap-3.5 rounded-[14px] px-3 text-[15px] font-semibold"
+                style={{ background: isActive(href) ? "var(--color-accent-soft)" : "transparent" }}
+              >
+                <Icon size={22} />
+                {label}
+              </Link>
+            ))}
+            <Link href="/primeiros-passos" onClick={() => setSheet(false)} className="flex h-[52px] items-center gap-3.5 rounded-[14px] px-3 text-[15px] font-semibold">
+              <span className="flex h-[22px] w-[22px] items-center justify-center text-base">✓</span>
+              Primeiros passos
+              <span className="ml-auto text-xs font-medium text-muted">{steps}</span>
+            </Link>
+            <div className="my-1.5 h-px bg-line-soft" />
+            <a href={publicUrl} target="_blank" rel="noreferrer" className="flex h-12 items-center rounded-[14px] px-3 text-[15px] font-medium">
+              Ver minha página pública ↗
+            </a>
+            <a href="/api/auth/instagram" onClick={onReconnect} className="flex h-12 items-center rounded-[14px] px-3 text-[15px] font-medium">
+              Reconectar Instagram
+            </a>
+            <div className="flex gap-4 px-3 py-2 text-[13px] text-muted">
+              <Link href="/privacidade" onClick={() => setSheet(false)}>
+                Privacidade
+              </Link>
+              <Link href="/exclusao-de-dados" onClick={() => setSheet(false)}>
+                Exclusão de dados
+              </Link>
+            </div>
+            <form action="/api/auth/logout" method="post">
+              <button type="submit" className="h-12 w-full cursor-pointer rounded-[14px] border-none bg-danger-bg px-3 text-left text-[15px] font-semibold text-danger">
+                Sair
+              </button>
+            </form>
+          </div>
+        </>
+      ) : null}
+
+      <PwaSetup />
 
       {menu ? (
         <>

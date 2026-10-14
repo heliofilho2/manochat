@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Fluxos — Oslinke" };
 
 const STATUS_LABEL: Record<string, string> = { draft: "Rascunho", live: "No ar", paused: "Pausado" };
-const TRIGGER_LABEL: Record<string, string> = { comment: "Comentário", story: "Resposta ao story", dm: "Palavra no direct" };
+const TRIGGER_LABEL: Record<string, string> = { comment: "Comentário", story: "Resposta ao story", mention: "Menção no story", dm: "Direct" };
 
 export default async function FlowsPage() {
   const session = await getSession();

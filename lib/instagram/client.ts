@@ -128,6 +128,16 @@ export function reactToMessage(
   });
 }
 
+/** Shows "typing…" in the person's chat (only valid inside the 24h window). */
+export function sendTypingOn(token: string, igUserId: string, recipientId: string) {
+  return call<{ recipient_id: string }>(`/${igUserId}/messages`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    params: { access_token: token },
+    body: JSON.stringify({ recipient: { id: recipientId }, sender_action: "typing_on" }),
+  });
+}
+
 /** Follower count of the connected account (instagram_business_basic). */
 export async function getFollowersCount(token: string): Promise<number | null> {
   const res = await call<{ followers_count?: number }>("/me", {

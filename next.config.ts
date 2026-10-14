@@ -12,6 +12,20 @@ const escaped = bioUser?.replace(/\./g, "\\.");
 const onBioHost = bioOnly ? [{ type: "host" as const, value: bioHost }] : [];
 
 const nextConfig: NextConfig = {
+  // The service worker must never be cached, or app updates would be stuck behind an old one.
+  async headers() {
+    return [
+      {
+        source: "/sw.js",
+        headers: [
+          { key: "Content-Type", value: "application/javascript; charset=utf-8" },
+          { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+          { key: "Content-Security-Policy", value: "default-src 'self'; script-src 'self'" },
+        ],
+      },
+    ];
+  },
+
   // Old English routes (bookmarks, Meta dashboard URLs) keep working.
   async redirects() {
     return [

@@ -1123,7 +1123,7 @@ export function AutomationEditor({
       <button
         type="button"
         onClick={() => setPv(true)}
-        className="fixed right-4 bottom-[84px] z-[25] h-12 cursor-pointer rounded-full border-none bg-ink px-[18px] text-sm font-semibold whitespace-nowrap text-white shadow-[0_10px_26px_rgba(27,23,18,.3)] min-[820px]:bottom-6 min-[1180px]:hidden"
+        className="fixed right-4 bottom-[calc(88px+env(safe-area-inset-bottom))] z-[25] h-12 cursor-pointer rounded-full border-none bg-ink px-[18px] text-sm font-semibold whitespace-nowrap text-white shadow-[0_10px_26px_rgba(27,23,18,.3)] min-[820px]:bottom-6 min-[1180px]:hidden"
       >
         Ver conversa
       </button>

@@ -68,12 +68,16 @@ export async function flowStats(flowId: string, accountId: string, graph: FlowGr
   }
 
   const clicks: Record<string, number> = {};
+  const count = (nodeId: string, id: string) => {
+    clicks[`${nodeId}.${id}`] = clickRows.find((c) => c.linkId === clickKey(flowId, nodeId, id))?.n ?? 0;
+  };
   for (const node of graph.nodes) {
-    if (node.type !== "message") continue;
-    for (const b of node.data.buttons) {
-      if (b.url === undefined) continue;
-      const row = clickRows.find((c) => c.linkId === clickKey(flowId, node.id, b.id));
-      clicks[`${node.id}.${b.id}`] = row?.n ?? 0;
+    if (node.type === "message") for (const b of node.data.buttons) if (b.url !== undefined) count(node.id, b.id);
+    if (node.type === "cards") {
+      for (const c of node.data.cards) {
+        if (c.url) count(node.id, c.id);
+        for (const b of c.buttons) if (b.url !== undefined) count(node.id, b.id);
+      }
     }
   }
 

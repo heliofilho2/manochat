@@ -37,9 +37,12 @@ export interface MessagingEvent {
     mid: string;
     text?: string;
     is_echo?: boolean;
-    attachments?: { type: string }[];
+    /** `story_mention` when someone mentions the account in their story. */
+    attachments?: { type: string; payload?: { url?: string } }[];
     /** Present when the message is a reply to one of our stories. */
     reply_to?: { story?: { id?: string; url?: string } };
+    /** Present when the person tapped a quick reply chip. */
+    quick_reply?: { payload: string };
   };
   /** Present when the user tapped a postback button (field `messaging_postbacks`). */
   postback?: {
@@ -54,16 +57,33 @@ export type Button =
   | { type: "postback"; title: string; payload: string }
   | { type: "web_url"; title: string; url: string };
 
+/** A quick reply chip under a text message; its payload comes back on the `messages` webhook. */
+export interface QuickReplyOut {
+  content_type: "text";
+  title: string;
+  payload: string;
+}
+
+/** One card of a generic (carousel) template. */
+export interface GenericElement {
+  title: string;
+  subtitle?: string;
+  image_url?: string;
+  default_action?: { type: "web_url"; url: string };
+  buttons?: Button[];
+}
+
 /** The `message` object of a Send API call. */
 export type OutboundMessage =
-  | { text: string }
+  | { text: string; quick_replies?: QuickReplyOut[] }
   | {
       attachment: {
         type: "template";
         payload: { template_type: "button"; text: string; buttons: Button[] };
       };
     }
-  | { attachment: { type: "image"; payload: { url: string } } };
+  | { attachment: { type: "template"; payload: { template_type: "generic"; elements: GenericElement[] } } }
+  | { attachment: { type: "image" | "video" | "audio"; payload: { url: string } } };
 
 export interface IgMedia {
   id: string;

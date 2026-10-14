@@ -149,7 +149,7 @@ describe("flow graph", () => {
       edges: [],
     };
     const found = validateGraph(g).map((i) => i.message);
-    expect(found).toContain("No máximo 3 botões por mensagem.");
+    expect(found).toContain("No máximo 3 botões.");
     expect(found.some((m) => m.includes("passa de 20 caracteres"))).toBe(true);
   });
 

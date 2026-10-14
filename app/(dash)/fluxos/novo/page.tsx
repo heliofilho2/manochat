@@ -7,7 +7,7 @@ import { createFlow } from "../actions";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Novo fluxo — Oslinke" };
 
-const TRIGGER_LABEL = { comment: "Comentário", story: "Story", dm: "Direct" } as const;
+const TRIGGER_LABEL = { comment: "Comentário", story: "Story", mention: "Menção", dm: "Direct" } as const;
 
 export default async function NewFlowPage() {
   const session = await getSession();

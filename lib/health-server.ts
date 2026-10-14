@@ -66,6 +66,15 @@ async function post(text: string) {
   });
 }
 
+/** A one-off note to the owner's alert channel (flows' "Avisar" block). Never throws. */
+export async function notifyOwner(text: string): Promise<void> {
+  try {
+    await post(text);
+  } catch (error) {
+    console.error("[notify] failed", error);
+  }
+}
+
 /**
  * Called from the cron jobs. Alerts about current problems, at most once per
  * cooldown each. Never throws: monitoring must not break the thing it watches.

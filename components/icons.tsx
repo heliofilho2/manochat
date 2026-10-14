@@ -98,3 +98,20 @@ export const IconUsers = (p: P) => (
     <path d="M16 3.13a4 4 0 0 1 0 7.75" />
   </Svg>
 );
+
+export const IconFlow = (p: P) => (
+  <Svg {...p}>
+    <rect x="9" y="3" width="6" height="5" rx="1.5" />
+    <rect x="3" y="16" width="6" height="5" rx="1.5" />
+    <rect x="15" y="16" width="6" height="5" rx="1.5" />
+    <path d="M12 8v4M6 16v-2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2" />
+  </Svg>
+);
+
+export const IconMore = (p: P) => (
+  <Svg {...p}>
+    <circle cx="5" cy="12" r="1.6" />
+    <circle cx="12" cy="12" r="1.6" />
+    <circle cx="19" cy="12" r="1.6" />
+  </Svg>
+);

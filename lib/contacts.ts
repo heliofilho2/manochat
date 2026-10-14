@@ -63,6 +63,31 @@ export async function hasTag(accountId: string, contactId: string, name: string)
   return rows.length > 0;
 }
 
+/** Tag names, custom fields and the human-handoff pause of a contact. */
+export async function contactProfile(accountId: string, contactId: string) {
+  const [row] = await db
+    .select({ fields: contact.fields, pausedUntil: contact.botPausedUntil })
+    .from(contact)
+    .where(eq(contact.id, contactId))
+    .limit(1);
+  const tags = await db
+    .select({ name: tag.name })
+    .from(contactTag)
+    .innerJoin(tag, eq(tag.id, contactTag.tagId))
+    .where(and(eq(contactTag.contactId, contactId), eq(tag.accountId, accountId)));
+  return { fields: row?.fields ?? {}, pausedUntil: row?.pausedUntil ?? null, tags: tags.map((t) => t.name) };
+}
+
+/** Whether a human asked to answer this person (automations stay quiet until then). */
+export async function isBotPaused(accountId: string, igId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ until: contact.botPausedUntil })
+    .from(contact)
+    .where(and(eq(contact.accountId, accountId), eq(contact.igId, igId)))
+    .limit(1);
+  return Boolean(row?.until && row.until.getTime() > Date.now());
+}
+
 /** Removes a tag from a contact. Idempotent. */
 export async function removeTag(accountId: string, contactId: string, name: string) {
   const [t] = await db

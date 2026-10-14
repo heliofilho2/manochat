@@ -60,7 +60,7 @@ describe("flow messages", () => {
 
   it("clips long text and titles to Meta's limits", () => {
     const msg = buildFlowMessage(node([{ id: "b", label: "a".repeat(30) }], "x".repeat(700)), "r");
-    if (!("attachment" in msg) || msg.attachment.type !== "template") throw new Error("expected template");
+    if (!("attachment" in msg) || msg.attachment.type !== "template" || msg.attachment.payload.template_type !== "button") throw new Error("expected template");
     expect(msg.attachment.payload.text).toHaveLength(640);
     expect(msg.attachment.payload.buttons[0].title).toHaveLength(20);
   });
@@ -74,7 +74,7 @@ describe("flow messages", () => {
       baseUrl: "https://app.oslinke.com",
       username: null,
     });
-    if (!("attachment" in msg) || msg.attachment.type !== "template") throw new Error("expected template");
+    if (!("attachment" in msg) || msg.attachment.type !== "template" || msg.attachment.payload.template_type !== "button") throw new Error("expected template");
     expect(msg.attachment.payload.buttons[0]).toEqual({
       type: "web_url",
       title: "Comprar",

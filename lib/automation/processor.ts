@@ -13,7 +13,7 @@ import {
   webhookEvent,
 } from "@/db";
 import { accessTokenFor, getAccountByIgUserId, type Account } from "@/lib/account";
-import { addTag, touchContact } from "@/lib/contacts";
+import { addTag, isBotPaused, touchContact } from "@/lib/contacts";
 import { forwardLead } from "@/lib/leads";
 import {
   getUserFollowsBusiness,
@@ -143,6 +143,7 @@ async function handlePostback(acct: Account, event: MessagingEvent) {
   const postback = event.postback!;
   if (event.sender.id === acct.igUserId) return;
 
+  if (await isBotPaused(acct.id, event.sender.id)) return;
   const flowTap = parseFlowPayload(postback.payload);
   const automationId = flowTap ? null : parseUnlockPayload(postback.payload);
   if (!flowTap && !automationId) return;
@@ -305,6 +306,7 @@ async function handleComment(acct: Account, value: CommentValue) {
   // arrives back as a new comment event and the bot replies to itself
   // forever.
   if (!commenterId || commenterId === acct.igUserId) return;
+  if (await isBotPaused(acct.id, commenterId)) return;
 
   const commentedAt = value.timestamp ? new Date(value.timestamp) : new Date();
   const mediaId = value.media?.id ?? null;
@@ -535,26 +537,60 @@ async function handleInboundMessage(acct: Account, event: MessagingEvent) {
   const msg = event.message;
   if (!msg?.mid || msg.is_echo || event.sender.id === acct.igUserId) return;
 
+  const igsid = event.sender.id;
   const at = new Date(event.timestamp);
   // Anything the person sends reopens the 24h window.
-  await touchContact(acct.id, event.sender.id, null, at);
+  await touchContact(acct.id, igsid, null, at);
+
+  // A human took over this conversation: no automation answers until the pause ends.
+  if (await isBotPaused(acct.id, igsid)) return;
+
+  // A quick-reply chip of a flow: same as tapping its button.
+  const quick = msg.quick_reply?.payload ? parseFlowPayload(msg.quick_reply.payload) : null;
+  if (quick) {
+    await resumeFromTap(acct, quick, igsid, at);
+    return;
+  }
 
   // Someone answering a flow's question: the flow owns this message.
-  if (msg.text && (await resumeFromReply(acct, event.sender.id, msg.text, msg.mid, at))) return;
+  if (msg.text && (await resumeFromReply(acct, igsid, msg.text, msg.mid, at))) return;
 
-  if (await startInboundFlow(acct, event)) return;
-  if (msg.reply_to?.story) await handleStoryReply(acct, event);
-  else await handleLeadAnswer(acct, event);
+  if (await startInboundFlow(acct, event, "keyword")) return;
+  if (msg.reply_to?.story) {
+    await handleStoryReply(acct, event);
+    return;
+  }
+  if (await leadIsWaiting(acct, igsid)) {
+    await handleLeadAnswer(acct, event);
+    return;
+  }
+  // Nothing else wanted it: the "default reply" flow, if there is one.
+  await startInboundFlow(acct, event, "default");
+}
+
+/** Whether a story automation is waiting on this person's e-mail / phone. */
+async function leadIsWaiting(acct: Account, igsid: string): Promise<boolean> {
+  const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const [l] = await db
+    .select({ step: lead.step, updatedAt: lead.updatedAt, automationId: lead.automationId })
+    .from(lead)
+    .where(and(eq(lead.accountId, acct.id), eq(lead.igId, igsid)))
+    .orderBy(desc(lead.updatedAt))
+    .limit(1);
+  return Boolean(l && l.step !== "done" && l.updatedAt >= dayAgo && l.automationId);
 }
 
 /**
- * Story replies and DMs can start a flow. A live flow that matches wins over
- * the plain story automation / lead questions, like comments do.
+ * Story replies, story mentions and DMs can start a flow. A live flow that
+ * matches wins over the plain story automation / lead questions, like comments
+ * do. `default` looks only at DM flows with no words (the catch-all reply).
  */
-async function startInboundFlow(acct: Account, event: MessagingEvent): Promise<boolean> {
+async function startInboundFlow(acct: Account, event: MessagingEvent, pass: "keyword" | "default"): Promise<boolean> {
   const msg = event.message!;
+  const mention = msg.attachments?.some((a) => a.type === "story_mention") ?? false;
   const storyId = msg.reply_to?.story ? (msg.reply_to.story.id ?? null) : undefined;
-  const kind = storyId === undefined ? "dm" : "story";
+  const kind = mention ? "mention" : storyId !== undefined ? "story" : "dm";
+  if (pass === "default" && kind !== "dm") return false;
   const text = msg.text ?? "";
 
   const flows = await db
@@ -565,12 +601,15 @@ async function startInboundFlow(acct: Account, event: MessagingEvent): Promise<b
 
   const hit = flows.find((f) => {
     if (kind === "story" && f.scope === "specific_posts" && (!storyId || !f.postIds.includes(storyId))) return false;
-    // A story flow with no words fires on any reply or reaction; a DM flow always needs a word.
-    if (f.keywords.length === 0) return kind === "story";
-    return matchKeyword(text, f.keywords, f.matchMode as MatchMode) !== null;
+    if (f.keywords.length === 0) {
+      // No words: any story reply / mention; for DMs, only as the last-resort default reply.
+      return kind !== "dm" || pass === "default";
+    }
+    return pass === "keyword" && matchKeyword(text, f.keywords, f.matchMode as MatchMode) !== null;
   });
   if (!hit) return false;
 
+  // Even when the flow's "same person again?" rule skips it, the message was the flow's.
   await startFlowRun(acct, hit, {
     igsid: event.sender.id,
     username: null,

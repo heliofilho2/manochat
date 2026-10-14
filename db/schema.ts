@@ -11,6 +11,12 @@ export interface FlowRunVars {
   answers?: Record<string, string>;
   /** Lead row created from an e-mail / phone answer. */
   leadId?: string;
+  /** Instagram display name, for {nome}. */
+  name?: string | null;
+  /** Messages this run has sent (safety cap). */
+  sent?: number;
+  /** How many "go to another flow" jumps led here (safety cap). */
+  hops?: number;
 }
 import {
   boolean,
@@ -231,6 +237,10 @@ export const contact = pgTable(
     optedInAt: timestamp("opted_in_at", { withTimezone: true }),
 
     lastInteractionAt: timestamp("last_interaction_at", { withTimezone: true }),
+    /** Custom fields set by flows ({campo:nome} in messages). Keys are lower_snake_case. */
+    fields: jsonb("fields").$type<Record<string, string>>().notNull().default({}),
+    /** "Talk to a human": no automation answers this person until then. */
+    botPausedUntil: timestamp("bot_paused_until", { withTimezone: true }),
     messagingWindowExpiresAt: timestamp("messaging_window_expires_at", {
       withTimezone: true,
     }),
@@ -479,8 +489,10 @@ export const flow = pgTable(
     name: text("name").notNull(),
     /** draft | live | paused — only `live` flows fire. */
     status: text("status").notNull().default("draft"),
-    /** comment | story | dm — what starts the flow (see lib/flow/graph.ts). */
+    /** comment | story | mention | dm — what starts the flow (see lib/flow/graph.ts). */
     triggerKind: text("trigger_kind").notNull().default("comment"),
+    /** always | daily | once — whether the same person can go through it again. */
+    rerun: text("rerun").notNull().default("always"),
 
     keywords: jsonb("keywords").$type<string[]>().notNull().default([]),
     matchMode: text("match_mode").notNull().default("exact_word"),

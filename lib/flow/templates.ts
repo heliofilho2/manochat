@@ -112,7 +112,7 @@ export const TEMPLATES: FlowTemplate[] = [
           },
         },
         { id: "aguarda", type: "delay", data: { minutes: 180 } },
-        { id: "abriu", type: "condition", data: { check: { kind: "clicked" } } },
+        { id: "abriu", type: "condition", data: { match: "all", rules: [{ kind: "clicked" }] } },
         { id: "obrigado", type: "message", data: { text: "Viu a oferta? Qualquer dúvida é só me chamar aqui 💬", buttons: [] } },
         {
           id: "lembrete",
