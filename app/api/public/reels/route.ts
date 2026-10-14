@@ -1,4 +1,4 @@
-import { and, desc, eq, isNotNull } from "drizzle-orm";
+import { and, desc, eq, gte, isNotNull } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { db, igPost } from "@/db";
 import { getAccount } from "@/lib/account";
@@ -30,12 +30,23 @@ export async function GET(request: NextRequest) {
     await refresh(acct);
   }
 
+  // sort=top&days=14 -> mais virais dentro da janela, pro media kit (numero que impressiona
+  // marca). Sem isso: os mais recentes, pro teaser da home (o que ta saindo agora).
+  const params = request.nextUrl.searchParams;
+  const top = params.get("sort") === "top";
+  const days = Number(params.get("days") ?? "0");
+  const limit = Math.min(Number(params.get("limit") ?? "4"), 12);
+
+  const conditions = [eq(igPost.accountId, acct.id), eq(igPost.mediaProductType, "REELS"), isNotNull(igPost.permalink)];
+  if (top) conditions.push(isNotNull(igPost.viewsCount));
+  if (days > 0) conditions.push(gte(igPost.timestamp, new Date(Date.now() - days * 24 * 60 * 60 * 1000)));
+
   const rows = await db
     .select()
     .from(igPost)
-    .where(and(eq(igPost.accountId, acct.id), eq(igPost.mediaProductType, "REELS"), isNotNull(igPost.permalink)))
-    .orderBy(desc(igPost.timestamp))
-    .limit(4);
+    .where(and(...conditions))
+    .orderBy(top ? desc(igPost.viewsCount) : desc(igPost.timestamp))
+    .limit(limit);
 
   return NextResponse.json({
     followers: acct.followersCount,

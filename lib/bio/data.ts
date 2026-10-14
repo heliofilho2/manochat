@@ -43,8 +43,9 @@ export async function refresh(acct: typeof account.$inferSelect) {
       await db.insert(igPost).values(values).onConflictDoUpdate({ target: igPost.id, set: values });
     }
     // Views só pros Reels mais recentes - a Insights API é uma chamada por mídia, não vale
-    // gastar isso nos 30 itens inteiros a cada refresh.
-    const recentReels = (data ?? []).filter((m) => m.media_product_type === "REELS").slice(0, 8);
+    // gastar isso nos 30 itens inteiros a cada refresh. 14 cobre a janela que o media kit usa
+    // pra "mais virais dos últimos 14 dias" mesmo postando quase todo dia.
+    const recentReels = (data ?? []).filter((m) => m.media_product_type === "REELS").slice(0, 14);
     for (const m of recentReels) {
       try {
         const { views } = await getMediaReach(token, m.id);
