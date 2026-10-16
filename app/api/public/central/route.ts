@@ -101,9 +101,16 @@ export async function GET(request: NextRequest) {
       })
       .from(flowRun)
       .where(and(eq(flowRun.accountId, acct.id), gte(flowRun.createdAt, since))),
-    db.select({ id: flow.id, keywords: flow.keywords, matchMode: flow.matchMode }).from(flow).where(eq(flow.accountId, acct.id)),
+    db.select({ id: flow.id, keywords: flow.keywords, matchMode: flow.matchMode, status: flow.status }).from(flow).where(eq(flow.accountId, acct.id)),
     db
-      .select({ id: automation.id, kind: automation.kind, requireFollow: automation.requireFollow, openerText: automation.openerText })
+      .select({
+        id: automation.id,
+        kind: automation.kind,
+        requireFollow: automation.requireFollow,
+        openerText: automation.openerText,
+        keywords: automation.keywords,
+        status: automation.status,
+      })
       .from(automation)
       .where(eq(automation.accountId, acct.id)),
     db
@@ -208,7 +215,9 @@ export async function GET(request: NextRequest) {
       comments: comments.map((c) => ({ ...c, at: c.commentedAt ?? c.createdAt })),
       flowRuns: runs,
       flowComments,
-      flows,
+      flows: flows.map(({ status: _status, ...f }) => f),
+      // Só o que está no ar dispara: a Central confere a palavra do reel de teste contra esta lista.
+      activeKeywords: [...flows.filter((f) => f.status === "live").flatMap((f) => f.keywords), ...autos.filter((a) => a.status === "live").flatMap((a) => a.keywords)],
       // Mesma regra de usesOpenerButton (lib/automation/flow.ts): botão no primeiro DM = link no toque.
       automations: autos.map((a) => ({ id: a.id, gated: a.kind === "comment" && (a.requireFollow || Boolean(a.openerText)) })),
       taps,

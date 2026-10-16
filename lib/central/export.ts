@@ -178,6 +178,8 @@ export interface CentralInput {
   bioViews: DayCount[];
   bioClicks: DayCount[];
   messageLimit?: number;
+  /** Palavras das automações e fluxos no ar (status live), cruas. A Central confere a palavra de um reel de teste. */
+  activeKeywords?: string[];
 }
 
 /* ── Saída: o contrato ──────────────────────────────────────────────────── */
@@ -242,6 +244,8 @@ export interface CentralExport {
   messages: CentralMessage[];
   /** true quando havia mais mensagens que o limite (as mais novas vão primeiro). */
   truncated: boolean;
+  /** Palavras das automações e fluxos no ar (status live), normalizadas e sem repetição. */
+  activeKeywords: string[];
 }
 
 const LEAD_TRIGGERS_MAX = 20;
@@ -535,5 +539,6 @@ export function buildCentralExport(input: CentralInput): CentralExport {
       .sort((a, b) => a.day.localeCompare(b.day) || b.comments - a.comments || a.keywordNormalized.localeCompare(b.keywordNormalized)),
     messages: messages.slice(0, limit),
     truncated: messages.length > limit,
+    activeKeywords: [...new Set((input.activeKeywords ?? []).map((k) => normalize(k)).filter(Boolean))].sort(),
   };
 }

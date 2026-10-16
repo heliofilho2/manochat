@@ -137,11 +137,17 @@ const expected = {
     { kind: "comment", id: "c1", text: "BANCO", at: "2026-10-15T15:00:00.000Z", authorIgId: "u1", mediaId: "m1", keyword: "BANCO", keywordOnly: true },
   ],
   truncated: false,
+  activeKeywords: [],
 };
 
 describe("leitura da Central (GET /api/public/central)", () => {
   it("monta o contrato v1 com totais do dia, palavras e mensagens", () => {
     expect(buildCentralExport(input)).toEqual(expected);
+  });
+
+  it("manda as palavras no ar normalizadas, sem repetir e em ordem (a Central confere o reel de teste)", () => {
+    const out = buildCentralExport({ ...input, activeKeywords: ["GitHub", "github", "AÇÃO", " ", "curso"] });
+    expect(out.activeKeywords).toEqual(["acao", "curso", "github"]);
   });
 
   it("nunca deixa sair e-mail ou telefone, nem a resposta a uma pergunta de lead", () => {
