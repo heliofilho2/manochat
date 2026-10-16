@@ -37,6 +37,9 @@ export const env = {
   get publicApiSecret() {
     return required("PUBLIC_API_SECRET");
   },
+  get centralApiSecret() {
+    return required("CENTRAL_API_SECRET");
+  },
   get databaseUrl() {
     return required("DATABASE_URL");
   },

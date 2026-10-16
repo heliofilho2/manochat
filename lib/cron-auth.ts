@@ -27,3 +27,15 @@ export function isAuthorizedPublicApi(request: NextRequest): boolean {
   const b = Buffer.from(expected);
   return a.length === b.length && timingSafeEqual(a, b);
 }
+
+/**
+ * Guards GET /api/public/central (a Central do Criador lê DMs e palavras daqui).
+ * Segredo próprio: o da home de heliofilho.dev não abre as mensagens.
+ */
+export function isAuthorizedCentralApi(request: NextRequest): boolean {
+  const header = request.headers.get("authorization") ?? "";
+  const expected = `Bearer ${env.centralApiSecret}`;
+  const a = Buffer.from(header);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
