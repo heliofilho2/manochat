@@ -1,4 +1,4 @@
-import { and, eq, gte, isNotNull, notLike, sql } from "drizzle-orm";
+import { and, eq, gte, isNotNull, notLike, sql, type AnyColumn } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import {
   automation,
@@ -31,7 +31,10 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
-const dayExpr = (col: unknown) => sql<string>`to_char(${col} at time zone ${CENTRAL_TIME_ZONE}, 'YYYY-MM-DD')`;
+// Fuso como literal (constante nossa, nunca entrada de fora): com parâmetro, o select e o group by
+// viram $1 e $2 e o Postgres não reconhece que são a mesma expressão.
+const TZ = sql.raw(`'${CENTRAL_TIME_ZONE}'`);
+const dayExpr = (col: AnyColumn) => sql<string>`to_char(${col} at time zone ${TZ}, 'YYYY-MM-DD')`;
 
 /**
  * Único consumidor: a Central do Criador (lib/oslinke.ts de lá), uma vez por dia.
@@ -68,6 +71,8 @@ export async function GET(request: NextRequest) {
 
   const since = dayStart(dayRange(now, days)[0]);
   const me = acct.igUserId;
+  // Nos SQL crus a data vai como texto ISO com cast: não depende de como o driver serializa Date.
+  const sinceIso = since.toISOString();
 
   const [comments, runs, flows, autos, taps, messages, leads, received, views, clicks, flags] = await Promise.all([
     db
@@ -129,12 +134,12 @@ export async function GET(request: NextRequest) {
       .where(and(eq(lead.accountId, acct.id), gte(lead.createdAt, since))),
     // Todos os comentários que chegaram (não só os com palavra), sem os do próprio perfil.
     db.execute<{ day: string; n: number }>(sql`
-      select to_char(w.received_at at time zone ${CENTRAL_TIME_ZONE}, 'YYYY-MM-DD') as day,
+      select to_char(w.received_at at time zone ${TZ}, 'YYYY-MM-DD') as day,
              count(distinct c -> 'value' ->> 'id')::int as n
       from webhook_event w
       cross join lateral jsonb_path_query(w.payload, '$.entry[*].changes[*] ? (@.field == "comments")') as c
       where w.field = 'comments'
-        and w.received_at >= ${since}
+        and w.received_at >= ${sinceIso}::timestamptz
         and coalesce(c -> 'value' -> 'from' ->> 'id', '') <> ${me}
       group by 1
     `),
@@ -159,7 +164,7 @@ export async function GET(request: NextRequest) {
       from webhook_event w
       cross join lateral jsonb_path_query(w.payload, '$.entry[*].messaging[*]') as m
       where w.field = 'messages'
-        and w.received_at >= ${since}
+        and w.received_at >= ${sinceIso}::timestamptz
         and m -> 'message' ->> 'mid' is not null
         and ((m -> 'message' -> 'reply_to' -> 'story') is not null
           or (m -> 'message' -> 'quick_reply') is not null
@@ -179,7 +184,7 @@ export async function GET(request: NextRequest) {
           from webhook_event w
           cross join lateral jsonb_path_query(w.payload, '$.entry[*].changes[*] ? (@.field == "comments")') as c
           where w.field = 'comments'
-            and w.received_at >= ${new Date(since.getTime() - 86_400_000)}
+            and w.received_at >= ${new Date(since.getTime() - 86_400_000).toISOString()}::timestamptz
             and (c -> 'value' ->> 'id') in (${sql.join(
               flowCommentIds.map((id) => sql`${id}`),
               sql`, `,
