@@ -5,7 +5,7 @@ Comentou a palavra ou respondeu o story? O link chega na DM, sozinho. Com checag
 quem segue, captura de leads e uma página de links (link na bio) personalizável.
 
 Usa **apenas as APIs oficiais da Meta** (Login do Instagram + Graph API). Sem senha, sem
-robô, sem scraping. Roda na **Vercel + Neon** e você pode hospedar a sua própria cópia.
+robô, sem scraping. Roda na **Vercel + Supabase** e você pode hospedar a sua própria cópia.
 
 > Veja como ele funciona, com as telas reais: **https://manochat.vercel.app/como-funciona**
 
@@ -155,12 +155,18 @@ cd manochat
 pnpm install
 ```
 
-### Passo 3 — Crie o banco (Neon)
-Crie o banco **pela Vercel** (liga tudo automaticamente ao seu projeto):
+### Passo 3 — Crie o banco (Supabase)
+O banco recebe webhook a cada poucos segundos e nunca hiberna; por isso Supabase, que não cobra
+horas de computação no plano grátis.
 
-1. Entre em [vercel.com](https://vercel.com) → **Storage → Create Database → Neon**.
-2. Crie e copie a string de conexão **pooled**:
-   `postgresql://user:pass@ep-xxx-pooler.region.aws.neon.tech/neondb?sslmode=require`
+1. Em [supabase.com](https://supabase.com), crie um projeto na região **East US (North Virginia)**,
+   a mesma das funções da Vercel.
+2. Em **Connect**, copie a string do **Transaction pooler** (porta 6543), sem `?sslmode`:
+   `postgresql://postgres.<ref>:<senha>@aws-0-us-east-1.pooler.supabase.com:6543/postgres`
+3. Em **Settings → API**, desligue a Data API do schema `public`. O app não usa `supabase-js`,
+   e sem isso as tabelas (com tokens do Instagram) ficam expostas pela chave anon.
+4. Rode as migrations com a string do **Session pooler** (porta 5432):
+   `DATABASE_URL=<session pooler> pnpm db:migrate`
 
 ### Passo 4 — Crie o app na Meta
 Tudo em [developers.facebook.com](https://developers.facebook.com), com a conta Facebook que será dona do app.
@@ -302,7 +308,7 @@ Ative também a notificação de falha do próprio cron-job.org, que cobre o cas
 | `TOKEN_ENC_KEY` | sim | `openssl rand -hex 32` (64 caracteres hex, chave AES-256 do token) |
 | `SESSION_SECRET` | sim | `openssl rand -hex 32` |
 | `CRON_SECRET` | sim | `openssl rand -hex 32` |
-| `DATABASE_URL` | sim | Passo 3 (string *pooled* do Neon) |
+| `DATABASE_URL` | sim | Passo 3 (transaction pooler do Supabase, porta 6543) |
 | `APP_URL` | sim | `http://localhost:3000` localmente; sua URL pública em produção, sem `/` final |
 | `NEXT_PUBLIC_PRIVACY_EMAIL` | não | E-mail exibido nas páginas de privacidade e exclusão de dados |
 | `BIO_DOMAIN` + `BIO_USERNAME` | não | Domínio só da bio (ex.: `links.seusite.com`) que abre `/u/<usuario>` na raiz e redireciona o resto para `/`. Adicione o domínio ao projeto na Vercel e crie o CNAME no DNS |
@@ -362,7 +368,7 @@ interrompem o fluxo da DM.
 
 ## Arquitetura
 
-**Stack:** Next.js (App Router) + React + Tailwind CSS v4 · TypeScript · Drizzle ORM + Neon
+**Stack:** Next.js (App Router) + React + Tailwind CSS v4 · TypeScript · Drizzle ORM + Supabase (Postgres)
 (Postgres) · zod · jose (sessão) · Vitest.
 
 ```
@@ -408,11 +414,11 @@ a lógica de matching funcionam localmente sem túnel.
 
 ## Custos
 
-Com poucas contas, **praticamente zero**: a API do Instagram é gratuita e Vercel e Neon têm planos
+Com poucas contas, **praticamente zero**: a API do Instagram é gratuita e Vercel e Supabase têm planos
 grátis. Ao crescer ou ao usar comercialmente, considere:
 
 - **Vercel Pro** (cerca de US$ 20/mês). O plano Hobby é para uso **pessoal e não comercial**.
-- **Neon** pago (na faixa de US$ 19/mês) quando o plano grátis não bastar.
+- **Supabase Pro** (na faixa de US$ 25/mês) quando os 500 MB do plano grátis não bastarem.
 - Domínio próprio (algumas dezenas de reais por ano).
 - Seu tempo: a API da Meta muda com frequência.
 
