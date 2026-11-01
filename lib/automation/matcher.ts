@@ -40,12 +40,14 @@ export function normalize(input: string): string {
 /**
  * Returns the keyword that matched, or null.
  *
- * `exact_word` pads both sides with spaces and looks for the padded keyword,
- * which gives whole-word semantics without regex escaping and still supports
- * multi-word phrases like "free guide". This is what stops the keyword
- * "link" from firing on the word "linkedin" — the single most common
- * false-positive in comment automation, and the reason `exact_word` is the
- * default.
+ * `exact_word` means the whole comment is the keyword: "GARAGEM 🙏" fires,
+ * "na minha garagem não tem" does not. Emoji, punctuation, case and accents
+ * are already folded away by normalize().
+ *
+ * `contains` means the keyword appears as a whole word (or phrase) anywhere
+ * in the comment. Padding both sides with spaces gives whole-word semantics
+ * without regex escaping and still supports multi-word phrases like
+ * "free guide". This is what stops "link" from firing on "linkedin".
  */
 export function matchKeyword(
   text: string,
@@ -60,8 +62,7 @@ export function matchKeyword(
     const needle = normalize(keyword);
     if (!needle) continue;
 
-    const hit =
-      mode === "contains" ? haystack.includes(needle) : padded.includes(` ${needle} `);
+    const hit = mode === "contains" ? padded.includes(` ${needle} `) : haystack === needle;
     if (hit) return keyword;
   }
   return null;

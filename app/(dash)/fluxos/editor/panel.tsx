@@ -137,7 +137,7 @@ function TriggerForm({ meta, setMeta, posts, stories }: { meta: Meta; setMeta: (
               onPick={(matchMode) => setMeta({ ...meta, matchMode })}
               options={[
                 ["exact_word", "Palavra exata"],
-                ["contains", "Contém o texto"],
+                ["contains", "Contém a palavra"],
               ]}
             />
           ) : null}

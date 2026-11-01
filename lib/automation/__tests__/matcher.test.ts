@@ -36,30 +36,33 @@ describe("normalize", () => {
 });
 
 describe("matchKeyword — exact_word", () => {
-  it("matches a standalone word", () => {
-    expect(matchKeyword("send me the LINK please", ["link"], "exact_word")).toBe("link");
+  it("matches when the comment is only the keyword", () => {
+    expect(matchKeyword("GARAGEM", ["garagem"], "exact_word")).toBe("garagem");
+    expect(matchKeyword("garagem", ["GARAGEM"], "exact_word")).toBe("GARAGEM");
+  });
+
+  it("does NOT match the keyword in the middle of a sentence", () => {
+    expect(matchKeyword("na minha garagem nao tem isso", ["garagem"], "exact_word")).toBeNull();
+    expect(matchKeyword("send me the LINK please", ["link"], "exact_word")).toBeNull();
   });
 
   it("does NOT match 'link' inside 'linkedin'", () => {
-    expect(matchKeyword("follow me on linkedin", ["link"], "exact_word")).toBeNull();
+    expect(matchKeyword("linkedin", ["link"], "exact_word")).toBeNull();
   });
 
-  it("matches a word adjacent to punctuation", () => {
+  it("ignores punctuation, emoji and accents around the keyword", () => {
     expect(matchKeyword("link!", ["link"], "exact_word")).toBe("link");
+    expect(matchKeyword("  Garagem!!! 🙏🔥", ["garagem"], "exact_word")).toBe("garagem");
+    expect(matchKeyword("Receíta", ["receita"], "exact_word")).toBe("receita");
   });
 
-  it("matches when the comment is only the keyword", () => {
-    expect(matchKeyword("Guide", ["guide"], "exact_word")).toBe("guide");
-  });
-
-  it("supports multi-word phrases", () => {
-    expect(matchKeyword("i want the free guide now", ["free guide"], "exact_word")).toBe(
-      "free guide",
-    );
+  it("supports multi-word phrases, as the whole comment", () => {
+    expect(matchKeyword("Free guide!", ["free guide"], "exact_word")).toBe("free guide");
+    expect(matchKeyword("i want the free guide now", ["free guide"], "exact_word")).toBeNull();
   });
 
   it("returns the first matching keyword from the list", () => {
-    expect(matchKeyword("send the guide", ["link", "guide"], "exact_word")).toBe("guide");
+    expect(matchKeyword("guide", ["link", "guide"], "exact_word")).toBe("guide");
   });
 
   it("returns null when nothing matches", () => {
@@ -76,12 +79,22 @@ describe("matchKeyword — exact_word", () => {
 });
 
 describe("matchKeyword — contains", () => {
-  it("matches inside a larger word", () => {
-    expect(matchKeyword("follow me on linkedin", ["link"], "contains")).toBe("link");
+  it("matches the keyword anywhere in the comment", () => {
+    expect(matchKeyword("na minha garagem nao tem isso", ["garagem"], "contains")).toBe("garagem");
+    expect(matchKeyword("send me the LINK please", ["link"], "contains")).toBe("link");
   });
 
-  it("still respects normalization", () => {
+  it("matches when the comment is only the keyword", () => {
     expect(matchKeyword("GUIDE!!!", ["guide"], "contains")).toBe("guide");
+  });
+
+  it("supports multi-word phrases", () => {
+    expect(matchKeyword("i want the free guide now", ["free guide"], "contains")).toBe("free guide");
+  });
+
+  it("does NOT match inside a different word", () => {
+    expect(matchKeyword("follow me on linkedin", ["link"], "contains")).toBeNull();
+    expect(matchKeyword("amei as receitas", ["receita"], "contains")).toBeNull();
   });
 });
 
@@ -128,7 +141,7 @@ describe("scopeCovers", () => {
 });
 
 describe("findMatch", () => {
-  const comment = { text: "guide please", mediaId: "m1", commentedAt: new Date() };
+  const comment = { text: "Guide! 🙏", mediaId: "m1", commentedAt: new Date() };
 
   it("finds a live automation", () => {
     expect(findMatch([base], comment)?.keyword).toBe("guide");
