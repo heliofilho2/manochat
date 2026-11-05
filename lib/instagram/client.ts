@@ -182,6 +182,75 @@ export async function getMediaReach(
   return { reach: pick("reach"), views: pick("views") };
 }
 
+/** Um item de `data` da Insights API, de conta ou de mídia (ver lib/insights/media-kit.ts). */
+export interface InsightItem {
+  name: string;
+  values?: { value: number; end_time?: string }[];
+  total_value?: {
+    value?: number;
+    breakdowns?: {
+      dimension_keys?: string[];
+      results?: { dimension_values: string[]; value: number }[];
+    }[];
+  };
+}
+
+/**
+ * Insights da conta (instagram_business_manage_insights). `params` leva metric, period,
+ * metric_type, breakdown, since/until (no máximo 30 dias por chamada) ou timeframe.
+ */
+export function getAccountInsights(token: string, igUserId: string, params: Record<string, string>) {
+  return call<{ data: InsightItem[] }>(`/${igUserId}/insights`, {
+    params: { ...params, access_token: token },
+  });
+}
+
+/** Uma página de mídias com o necessário pro mídia kit, mais novas primeiro. */
+export function getMediaPage(token: string, after?: string, limit = 50) {
+  return call<{
+    data: {
+      id: string;
+      caption?: string;
+      media_type?: string;
+      media_product_type?: string;
+      permalink?: string;
+      thumbnail_url?: string;
+      media_url?: string;
+      timestamp?: string;
+    }[];
+    paging?: { cursors?: { after?: string }; next?: string };
+  }>("/me/media", {
+    params: {
+      fields: "id,caption,media_type,media_product_type,permalink,thumbnail_url,media_url,timestamp",
+      limit: String(limit),
+      ...(after ? { after } : {}),
+      access_token: token,
+    },
+  });
+}
+
+/** Views, alcance, salvamentos, envios e interações de um post ou reel. */
+export async function getMediaKitMetrics(
+  token: string,
+  mediaId: string,
+): Promise<{ views: number | null; reach: number | null; saves: number | null; shares: number | null; interactions: number | null }> {
+  const res = await call<{ data: InsightItem[] }>(`/${mediaId}/insights`, {
+    params: { metric: "views,reach,saved,shares,total_interactions", access_token: token },
+  });
+  const pick = (name: string) => {
+    const m = res.data.find((d) => d.name === name);
+    const v = m?.values?.[0]?.value ?? m?.total_value?.value;
+    return typeof v === "number" ? v : null;
+  };
+  return {
+    views: pick("views"),
+    reach: pick("reach"),
+    saves: pick("saved"),
+    shares: pick("shares"),
+    interactions: pick("total_interactions"),
+  };
+}
+
 /**
  * Subscribes this app to the account's `comments` and `messages` webhooks.
  *
